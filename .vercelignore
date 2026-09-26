@@ -1,0 +1,11 @@
+.env
+.env.*
+.data
+*.db
+*.db-journal
+.next
+node_modules
+coverage
+tests
+context.md
+implementation.md

@@ -13,6 +13,7 @@ type CasePageProps = {
 };
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export default async function CasePage({ params }: CasePageProps) {
   const { slug } = await params;

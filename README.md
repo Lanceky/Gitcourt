@@ -43,6 +43,18 @@ Git Court is an educational research tool, not legal advice. It uses public case
 
 The hackathon MVP will not provide legal advice, ingest active or confidential matters, replace a court docket, operate as a general-purpose Git hosting service, or attempt to cover every jurisdiction. It will prioritize one carefully curated public appellate case and a complete, understandable workflow over a large case database.
 
+## Run locally
+
+```bash
+npm ci
+cp .env.example .env
+npm run db:migrate
+npm run db:seed
+npm run dev
+```
+
+Open `http://localhost:3000` after the development server starts. The migration and seed commands are safe to rerun; they preserve the single public fixture without duplicating its docket entries.
+
 ## Current foundation
 
 The application uses Next.js, React, and TypeScript with Prisma and SQLite for local development. A filesystem-backed `isomorphic-git` adapter stores the case repositories, while the repository layer remains replaceable so PostgreSQL can replace SQLite without changing the domain workflow.
@@ -75,11 +87,38 @@ npm run build
 
 The route boundary validates internal IDs, Git references, branch names, repository document paths, public HTTPS sources, and bounded text fields before domain operations run. Student writes, reviews, merges, and explicit AI refreshes have server-side in-memory rate limits for the prototype; production deployment should add an edge or service-level limiter. The UI renders source text and student arguments as escaped React text rather than injecting HTML, and all write failures remain visible to the user.
 
-## Deployment target
+## Vercel-only deployment
 
-Deploy the backend API and persistence layer on **Render**. Deploy the Next.js frontend on **Vercel** and point it at the Render API. After the deployed workflow is verified, attach the supplied **`.xyz` domain** to the Vercel frontend.
+Git Court is deployed as one Next.js project on **Vercel**. The same deployment serves the React pages and the `/api/*` route handlers; no separate backend service is required. `vercel.json` uses `npm ci` and `npm run vercel-build`, which generates Prisma Client, applies committed migrations, imports the public fixture idempotently, and builds the application.
 
-The Render service must mount persistent storage for `GIT_REPOSITORIES_PATH`; Git Court stores repository objects on the backend filesystem alongside the database metadata.
+Configure these Vercel project variables for the seeded demo:
+
+```text
+NODE_ENV=production
+DATABASE_URL=file:./dev.db
+GIT_REPOSITORIES_PATH=.data/repositories
+NEXT_PUBLIC_APP_URL=https://your-project.vercel.app
+AI_SUMMARY_ENABLED=false
+```
+
+After deployment, verify the clean public URL with:
+
+```bash
+npm run verify:deployment -- https://your-project.vercel.app
+```
+
+The current SQLite database and `isomorphic-git` filesystem are intentionally kept unchanged for the hackathon. Vercel deployment files are read-only and writable `/tmp` storage is instance-local, so a Vercel-only deployment is suitable for the public, read-first seeded demo but does **not** provide durable fork, commit, review, or merge persistence across serverless instances. The complete collaboration workflow remains reproducible locally. Durable production collaboration requires replacing these adapters with Vercel-compatible persistent database and object storage; no Render service is introduced or required by this code path. Attach the supplied **`.xyz` domain** to the Vercel project only after the public URL passes verification.
+
+## Devpost submission package
+
+- **Project:** Git Court — a public-record learning workspace for court cases.
+- **Summary:** Fork a real public case, explore a what-if argument, and make every change reviewable.
+- **Problem:** Public court histories are difficult to follow and unsafe to alter for learning.
+- **Solution:** Source-linked case repositories, isolated moot-court forks, legal-theory branches, reviewable pull requests, conflict explanations, blame, audit events, and guarded AI summaries.
+- **Tech stack:** Next.js, React, TypeScript, Prisma, SQLite, `isomorphic-git`, Zod, and an optional OpenAI-compatible summary provider.
+- **Source attribution:** Carpenter v. United States, No. 16-402, from the public Supreme Court docket and opinion sources listed in the application.
+- **Demo sequence:** Problem (0:00), public history (0:20), fork and alternate argument (0:45), pull request and conflict (1:15), blame and AI summary (1:50), impact and limitations (2:20).
+- **Disclosure:** Pre-existing open-source libraries, public court sources, and any configured AI model are disclosed; AI output is educational orientation, not legal advice.
 
 ## Status
 

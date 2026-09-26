@@ -116,9 +116,12 @@ export class IsomorphicGitRepositoryAdapter implements RepositoryAdapter {
   private readonly root: string;
 
   constructor(rootDirectory = process.env.GIT_REPOSITORIES_PATH) {
+    const fallbackRoot =
+      process.env.NODE_ENV === "production"
+        ? path.join("/tmp", "gitcourt-repositories")
+        : path.join(process.cwd(), ".data", "repositories");
     this.root = path.resolve(
-      /* turbopackIgnore: true */ rootDirectory ??
-        path.join(process.cwd(), ".data", "repositories"),
+      /* turbopackIgnore: true */ rootDirectory ?? fallbackRoot,
     );
   }
 

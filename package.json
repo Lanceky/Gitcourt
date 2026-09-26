@@ -15,8 +15,11 @@
     "seed": "tsx scripts/seed.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
+    "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
-    "import:public-case": "tsx prisma/seed.ts"
+    "import:public-case": "tsx prisma/seed.ts",
+    "vercel-build": "prisma generate && prisma migrate deploy && npm run db:seed && next build",
+    "verify:deployment": "tsx scripts/verify-deployment.ts"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",

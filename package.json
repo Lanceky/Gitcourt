@@ -18,13 +18,14 @@
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "import:public-case": "tsx prisma/seed.ts",
-    "vercel-build": "prisma generate && prisma migrate deploy && npm run db:seed && next build",
+    "vercel-build": "./node_modules/.bin/prisma generate && ./node_modules/.bin/prisma migrate deploy && ./node_modules/.bin/tsx prisma/seed.ts && ./node_modules/.bin/next build",
     "verify:deployment": "tsx scripts/verify-deployment.ts"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",
     "isomorphic-git": "^1.36.0",
     "next": "^16.3.4",
+    "prisma": "6.19.3",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "tsx": "^4.23.15",
@@ -38,7 +39,6 @@
     "eslint-config-next": "^16.3.4",
     "ignore": "^7.0.8",
     "prettier": "^3.9.6",
-    "prisma": "6.19.3",
     "typescript": "^5.9.3"
   }
 }

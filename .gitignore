@@ -13,3 +13,4 @@ pnpm-debug.log*
 *.tsbuildinfo
 *.db
 *.db-journal
+.data/

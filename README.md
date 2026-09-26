@@ -44,7 +44,7 @@ The hackathon MVP will not provide legal advice, ingest active or confidential m
 
 ## Current foundation
 
-The application uses Next.js, React, and TypeScript with Prisma and SQLite for local development. The repository layer is designed to remain replaceable so `isomorphic-git` and a persistent PostgreSQL deployment can be added without changing the domain workflow.
+The application uses Next.js, React, and TypeScript with Prisma and SQLite for local development. A filesystem-backed `isomorphic-git` adapter stores the case repositories, while the repository layer remains replaceable so PostgreSQL can replace SQLite without changing the domain workflow.
 
 The domain model covers case repositories, immutable docket commits, branches, forks, pull requests, reviews, public source records, and audit events. Server-side policies protect the canonical public case, require public provenance, isolate forks, reject stale commits and unresolved conflicts, and restrict merges to assigned reviewers or administrators.
 
@@ -53,6 +53,8 @@ The demo fixture is **Carpenter v. United States, No. 16-402**, imported from th
 ## Deployment target
 
 Deploy the backend API and persistence layer on **Render**. Deploy the Next.js frontend on **Vercel** and point it at the Render API. After the deployed workflow is verified, attach the supplied **`.xyz` domain** to the Vercel frontend.
+
+The Render service must mount persistent storage for `GIT_REPOSITORIES_PATH`; Git Court stores repository objects on the backend filesystem alongside the database metadata.
 
 ## Status
 

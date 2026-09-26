@@ -58,9 +58,11 @@ model DocketCommit {
   entryType         String
   title             String
   content           String
+  documentPath      String?
   sourceReference   String?
   sourceUrl         String?
   attribution       String         @default("Public source")
+  parentShas        String?
   aiSummary         String?
   aiModel           String?
   aiPromptVersion   String?

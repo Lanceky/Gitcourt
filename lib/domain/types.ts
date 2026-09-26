@@ -6,6 +6,7 @@ export type Actor = {
   id: string;
   displayName: string;
   role: ActorRole;
+  email?: string;
 };
 
 export type RepositoryPolicyRecord = {
@@ -51,4 +52,61 @@ export type AppendCommitInput = {
   title: string;
   content: string;
   provenance: CommitProvenance | null;
+  documentPath?: string;
+  summary?: string;
+  publishedAt?: Date;
+};
+
+export type CreateRepositoryInput = {
+  slug: string;
+  title: string;
+  court: string;
+  docketNumber: string;
+  jurisdiction: string;
+  actor: Actor;
+  status?: string;
+  isPublic?: boolean;
+  isCanonicalSource?: boolean;
+  sourceUrl?: string | null;
+  sourceAttribution?: string | null;
+};
+
+export type CreateBranchInput = {
+  repositoryId: string;
+  name: string;
+  actor: Actor;
+  fromBranchName?: string;
+  fromSha?: string | null;
+  isProtected?: boolean;
+};
+
+export type ForkRepositoryInput = {
+  sourceRepositoryId: string;
+  slug: string;
+  actor: Actor;
+  title?: string;
+  isPublic?: boolean;
+};
+
+export type AppendDocketEntryInput = {
+  repositoryId: string;
+  branchName: string;
+  actor: Actor;
+  entryType: string;
+  title: string;
+  sourceText: string;
+  summary: string;
+  publishedAt: Date;
+  provenance: CommitProvenance;
+  documentPath?: string;
+};
+
+export type MergeBranchInput = {
+  repositoryId: string;
+  targetBranchName: string;
+  sourceBranchName: string;
+  actor: Actor;
+  expectedTargetHeadSha: string;
+  message: string;
+  provenance: CommitProvenance;
 };

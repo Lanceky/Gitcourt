@@ -10,8 +10,9 @@ import type {
 
 export function assertCanWriteRepository(
   repository: RepositoryPolicyRecord,
+  options: { allowCanonicalImport?: boolean } = {},
 ): void {
-  if (repository.isCanonicalSource) {
+  if (repository.isCanonicalSource && !options.allowCanonicalImport) {
     throw new DomainError(
       "CANONICAL_REPOSITORY_READ_ONLY",
       "The canonical public case record is read-only.",
@@ -62,8 +63,9 @@ export function assertCanAppendCommit(
   > & {
     provenance: CommitProvenance | null;
   },
+  options: { allowCanonicalImport?: boolean } = {},
 ): void {
-  assertCanWriteRepository(repository);
+  assertCanWriteRepository(repository, options);
 
   if (input.parentSha !== currentHeadSha) {
     throw new DomainError(

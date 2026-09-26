@@ -11,6 +11,7 @@ const gitToCourt = [
 
 export default function HomePage() {
   const docketEntries = getDemoDocketEntries();
+  const recentEntries = docketEntries.slice(-3).reverse();
 
   return (
     <div className="shell">
@@ -26,72 +27,59 @@ export default function HomePage() {
         </span>
       </header>
 
-      <main className="main">
+      <main className="main landing-page">
         <section className="hero" aria-labelledby="hero-title">
           <p className="eyebrow">A GitHub-inspired case workspace</p>
-          <h1 id="hero-title">Explore what a case could become.</h1>
+          <h1 id="hero-title">Read the record. Follow the reasoning.</h1>
           <p className="hero-copy">
             Git Court turns public court histories into readable, reviewable
-            repositories. Follow the record, fork it for moot court, and keep
-            every alternative argument safely separate.
+            repositories. Start with the original record, inspect each
+            milestone, and keep future moot-court work safely separate.
           </p>
-          <Link className="button" href="#case-repository">
-            Open the demo case
-          </Link>
+          <div className="hero-actions">
+            <Link
+              className="button"
+              href={`/cases/${demoCase.slug}`}
+              id="open-demo-case"
+            >
+              Open the demo case
+            </Link>
+            <a className="button button-secondary" href="#how-it-works">
+              How it works
+            </a>
+          </div>
         </section>
 
-        <section
-          className="repo-grid"
-          id="case-repository"
-          aria-label="Case repository"
-        >
-          <article className="card repo-card">
-            <div className="repo-heading">
-              <p className="eyebrow">Public repository</p>
-              <h2>{demoCase.title}</h2>
-              <p className="repo-meta">
-                <span>{demoCase.court}</span>
-                <span>{demoCase.docketNumber}</span>
-                <span className="status">{demoCase.status}</span>
-                <a href={demoCase.sourceUrl} rel="noreferrer" target="_blank">
-                  Official docket
-                </a>
-              </p>
-            </div>
-
-            <div className="readme">
-              <h3>README / Plain-language headnote</h3>
-              <p>{demoCase.summary}</p>
-            </div>
-
-            <div className="timeline">
-              <div className="timeline-heading">
-                <h3>Docket history</h3>
-                <span>{docketEntries.length} commits</span>
+        <section className="landing-grid" id="how-it-works">
+          <article className="card landing-card">
+            <p className="eyebrow">Start with one public case</p>
+            <h2>{demoCase.title}</h2>
+            <p className="landing-card-copy">{demoCase.summary}</p>
+            <dl className="landing-case-facts">
+              <div>
+                <dt>Court</dt>
+                <dd>{demoCase.court}</dd>
               </div>
-              {docketEntries.map((entry) => (
-                <article className="commit" key={entry.sha}>
-                  <span className="commit-icon" aria-hidden="true">
-                    {entry.type.slice(0, 2).toUpperCase()}
-                  </span>
-                  <div>
-                    <p className="commit-title">{entry.title}</p>
-                    <p className="commit-summary">{entry.summary}</p>
-                    <p className="commit-meta">
-                      {entry.author} · {entry.date}
-                    </p>
-                  </div>
-                  <code className="commit-sha">{entry.sha.slice(0, 7)}</code>
-                </article>
-              ))}
-            </div>
+              <div>
+                <dt>Docket</dt>
+                <dd>{demoCase.docketNumber}</dd>
+              </div>
+              <div>
+                <dt>History</dt>
+                <dd>{docketEntries.length} source-linked milestones</dd>
+              </div>
+            </dl>
+            <Link className="text-link" href={`/cases/${demoCase.slug}`}>
+              Browse the full repository →
+            </Link>
           </article>
 
-          <aside className="card side-card">
-            <h2>The Git-to-gavel map</h2>
-            <p>
-              Familiar collaboration concepts make a complex legal record easier
-              to inspect and discuss.
+          <aside className="card landing-card">
+            <p className="eyebrow">The Git-to-gavel map</p>
+            <h2>Familiar concepts, clearer history</h2>
+            <p className="landing-card-copy">
+              The interface borrows collaboration patterns from GitHub without
+              treating a legal record like a code repository.
             </p>
             <dl className="mapping">
               {gitToCourt.map(([gitTerm, courtTerm]) => (
@@ -101,12 +89,50 @@ export default function HomePage() {
                 </div>
               ))}
             </dl>
-            <p className="notice">
-              Educational research tool only. Verify every source; this is not
-              legal advice.
-            </p>
           </aside>
         </section>
+
+        <section
+          className="card landing-preview"
+          aria-labelledby="preview-title"
+        >
+          <div className="preview-heading">
+            <div>
+              <p className="eyebrow">A read-first workflow</p>
+              <h2 id="preview-title">See the latest milestones at a glance</h2>
+            </div>
+            <Link className="text-link" href={`/cases/${demoCase.slug}`}>
+              View all commits
+            </Link>
+          </div>
+          <div className="preview-list">
+            {recentEntries.map((entry) => (
+              <Link
+                className="preview-entry"
+                href={`/cases/${demoCase.slug}#commit-${entry.sha.slice(0, 7)}`}
+                key={entry.sha}
+              >
+                <span className="timeline-marker" aria-hidden="true">
+                  {entry.type.slice(0, 2).toUpperCase()}
+                </span>
+                <span>
+                  <strong>{entry.title}</strong>
+                  <span>
+                    {entry.author} · {entry.date}
+                  </span>
+                </span>
+                <code>{entry.sha.slice(0, 7)}</code>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        <p className="landing-source">
+          Demo source:{" "}
+          <a href={demoCase.sourceUrl} rel="noreferrer" target="_blank">
+            {demoCase.sourceAttribution}
+          </a>
+        </p>
       </main>
     </div>
   );

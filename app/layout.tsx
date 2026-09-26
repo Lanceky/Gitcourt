@@ -15,7 +15,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <div className="site-notice" role="note">
+          <div className="site-notice-inner">
+            <strong>Educational research tool:</strong> Git Court is not legal
+            advice. Verify every source before relying on it.
+          </div>
+        </div>
+        {children}
+      </body>
     </html>
   );
 }

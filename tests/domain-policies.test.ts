@@ -51,6 +51,7 @@ const provenance: CommitProvenance = {
   url: "https://example.test/public-case",
   citation: "Public case fixture",
   documentHash: "sha256:fixture",
+  attribution: "Public case fixture source",
   isPublicRecord: true,
 };
 

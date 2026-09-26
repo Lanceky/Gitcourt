@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { demoCase } from "@/lib/demo-case";
+import { demoCase, getDemoDocketEntries } from "@/lib/demo-case";
 
 const gitToCourt = [
   ["Repository", "Case file"],
@@ -10,6 +10,8 @@ const gitToCourt = [
 ];
 
 export default function HomePage() {
+  const docketEntries = getDemoDocketEntries();
+
   return (
     <div className="shell">
       <header className="topbar">
@@ -51,6 +53,9 @@ export default function HomePage() {
                 <span>{demoCase.court}</span>
                 <span>{demoCase.docketNumber}</span>
                 <span className="status">{demoCase.status}</span>
+                <a href={demoCase.sourceUrl} rel="noreferrer" target="_blank">
+                  Official docket
+                </a>
               </p>
             </div>
 
@@ -62,9 +67,9 @@ export default function HomePage() {
             <div className="timeline">
               <div className="timeline-heading">
                 <h3>Docket history</h3>
-                <span>{demoCase.entries.length} commits</span>
+                <span>{docketEntries.length} commits</span>
               </div>
-              {demoCase.entries.map((entry) => (
+              {docketEntries.map((entry) => (
                 <article className="commit" key={entry.sha}>
                   <span className="commit-icon" aria-hidden="true">
                     {entry.type.slice(0, 2).toUpperCase()}
@@ -76,7 +81,7 @@ export default function HomePage() {
                       {entry.author} · {entry.date}
                     </p>
                   </div>
-                  <code className="commit-sha">{entry.sha}</code>
+                  <code className="commit-sha">{entry.sha.slice(0, 7)}</code>
                 </article>
               ))}
             </div>

@@ -120,6 +120,7 @@ export class CaseRepositoryService {
           url: provenance.url,
           citation: provenance.citation,
           documentHash: provenance.documentHash,
+          attribution: provenance.attribution,
         },
       });
 

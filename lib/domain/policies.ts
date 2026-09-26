@@ -164,11 +164,12 @@ export function assertPublicRecordProvenance(
 
   if (
     sourceUrl.protocol !== "https:" ||
-    provenance.documentHash.trim() === ""
+    provenance.documentHash.trim() === "" ||
+    provenance.attribution.trim() === ""
   ) {
     throw new DomainError(
       "PROVENANCE_URL_INVALID",
-      "A provenance record must contain a valid HTTPS URL and document hash.",
+      "A provenance record must contain a valid HTTPS URL, document hash, and attribution.",
     );
   }
 }

@@ -8,63 +8,68 @@ datasource db {
 }
 
 model User {
-  id                   String          @id @default(cuid())
-  email                String          @unique
+  id                   String         @id @default(cuid())
+  email                String         @unique
   displayName          String
-  role                 String          @default("student")
-  createdAt            DateTime        @default(now())
-  authoredCommits      DocketCommit[]  @relation("CommitAuthor")
-  ownedBranches        Branch[]        @relation("BranchOwner")
-  authoredPullRequests PullRequest[]   @relation("PullRequestAuthor")
-  assignedPullRequests PullRequest[]   @relation("PullRequestReviewer")
-  reviews              Review[]        @relation("ReviewReviewer")
-  auditEvents          AuditEvent[]    @relation("AuditActor")
+  role                 String         @default("student")
+  createdAt            DateTime       @default(now())
+  authoredCommits      DocketCommit[] @relation("CommitAuthor")
+  ownedBranches        Branch[]       @relation("BranchOwner")
+  authoredPullRequests PullRequest[]  @relation("PullRequestAuthor")
+  assignedPullRequests PullRequest[]  @relation("PullRequestReviewer")
+  reviews              Review[]       @relation("ReviewReviewer")
+  auditEvents          AuditEvent[]   @relation("AuditActor")
 }
 
 model CaseRepository {
-  id                  String           @id @default(cuid())
-  slug                String           @unique
-  title               String
-  court               String
-  docketNumber        String
-  jurisdiction        String
-  status              String           @default("public")
-  isPublic            Boolean          @default(true)
-  isCanonicalSource   Boolean          @default(false)
-  parentRepositoryId  String?
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
-  parentRepository    CaseRepository?  @relation("RepositoryForks", fields: [parentRepositoryId], references: [id], onDelete: Restrict)
-  forks               CaseRepository[] @relation("RepositoryForks")
-  commits             DocketCommit[]
-  branches            Branch[]
-  pullRequests        PullRequest[]
-  sourceRecords       SourceRecord[]
-  auditEvents         AuditEvent[]
+  id                 String           @id @default(cuid())
+  slug               String           @unique
+  title              String
+  court              String
+  docketNumber       String
+  jurisdiction       String
+  status             String           @default("public")
+  isPublic           Boolean          @default(true)
+  isCanonicalSource  Boolean          @default(false)
+  sourceUrl          String?
+  sourceAttribution  String?
+  parentRepositoryId String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  parentRepository   CaseRepository?  @relation("RepositoryForks", fields: [parentRepositoryId], references: [id], onDelete: Restrict)
+  forks              CaseRepository[] @relation("RepositoryForks")
+  commits            DocketCommit[]
+  branches           Branch[]
+  pullRequests       PullRequest[]
+  sourceRecords      SourceRecord[]
+  auditEvents        AuditEvent[]
 
   @@index([parentRepositoryId])
   @@index([status])
 }
 
 model DocketCommit {
-  id               String          @id @default(cuid())
-  repositoryId     String
-  sha              String
-  parentSha        String?
-  authorId         String?
-  authorName       String
-  entryType        String
-  title            String
-  content          String
-  sourceReference  String?
-  aiSummary        String?
-  aiModel          String?
-  aiPromptVersion  String?
-  createdAt        DateTime        @default(now())
-  repository       CaseRepository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  author           User?           @relation("CommitAuthor", fields: [authorId], references: [id], onDelete: SetNull)
-  branchHeads      Branch[]        @relation("BranchHead")
-  sourceRecords    SourceRecord[]
+  id                String         @id @default(cuid())
+  repositoryId      String
+  sha               String
+  parentSha         String?
+  authorId          String?
+  authorName        String
+  entryType         String
+  title             String
+  content           String
+  sourceReference   String?
+  sourceUrl         String?
+  attribution       String         @default("Public source")
+  aiSummary         String?
+  aiModel           String?
+  aiPromptVersion   String?
+  publishedAt       DateTime       @default(now())
+  createdAt         DateTime       @default(now())
+  repository        CaseRepository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  author            User?          @relation("CommitAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  branchHeads       Branch[]       @relation("BranchHead")
+  sourceRecords     SourceRecord[]
   mergePullRequests PullRequest[]  @relation("PullRequestMergeCommit")
 
   @@unique([repositoryId, sha])
@@ -72,90 +77,91 @@ model DocketCommit {
 }
 
 model Branch {
-  id                  String          @id @default(cuid())
-  repositoryId        String
-  name                String
-  ownerId             String
-  headCommitId        String?
-  isProtected         Boolean         @default(false)
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
-  repository          CaseRepository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  owner               User            @relation("BranchOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  headCommit          DocketCommit?   @relation("BranchHead", fields: [headCommitId], references: [id], onDelete: Restrict)
-  sourcePullRequests  PullRequest[]   @relation("PullRequestSource")
-  targetPullRequests  PullRequest[]   @relation("PullRequestTarget")
+  id                 String         @id @default(cuid())
+  repositoryId       String
+  name               String
+  ownerId            String
+  headCommitId       String?
+  isProtected        Boolean        @default(false)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  repository         CaseRepository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  owner              User           @relation("BranchOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  headCommit         DocketCommit?  @relation("BranchHead", fields: [headCommitId], references: [id], onDelete: Restrict)
+  sourcePullRequests PullRequest[]  @relation("PullRequestSource")
+  targetPullRequests PullRequest[]  @relation("PullRequestTarget")
 
   @@unique([repositoryId, name])
   @@index([ownerId])
 }
 
 model PullRequest {
-  id                String          @id @default(cuid())
-  repositoryId      String
-  sourceBranchId    String
-  targetBranchId    String
-  authorId          String
-  reviewerId        String?
-  mergeCommitId     String?
-  title             String
-  description       String
-  status            String          @default("open")
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  mergedAt          DateTime?
-  repository        CaseRepository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  sourceBranch      Branch          @relation("PullRequestSource", fields: [sourceBranchId], references: [id], onDelete: Restrict)
-  targetBranch      Branch          @relation("PullRequestTarget", fields: [targetBranchId], references: [id], onDelete: Restrict)
-  author            User            @relation("PullRequestAuthor", fields: [authorId], references: [id], onDelete: Restrict)
-  reviewer          User?           @relation("PullRequestReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
-  mergeCommit       DocketCommit?   @relation("PullRequestMergeCommit", fields: [mergeCommitId], references: [id], onDelete: SetNull)
-  reviews           Review[]
+  id             String         @id @default(cuid())
+  repositoryId   String
+  sourceBranchId String
+  targetBranchId String
+  authorId       String
+  reviewerId     String?
+  mergeCommitId  String?
+  title          String
+  description    String
+  status         String         @default("open")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  mergedAt       DateTime?
+  repository     CaseRepository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  sourceBranch   Branch         @relation("PullRequestSource", fields: [sourceBranchId], references: [id], onDelete: Restrict)
+  targetBranch   Branch         @relation("PullRequestTarget", fields: [targetBranchId], references: [id], onDelete: Restrict)
+  author         User           @relation("PullRequestAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  reviewer       User?          @relation("PullRequestReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  mergeCommit    DocketCommit?  @relation("PullRequestMergeCommit", fields: [mergeCommitId], references: [id], onDelete: SetNull)
+  reviews        Review[]
 
   @@index([repositoryId, status])
   @@index([reviewerId])
 }
 
 model Review {
-  id           String       @id @default(cuid())
+  id            String      @id @default(cuid())
   pullRequestId String
-  reviewerId   String
-  decision     String
-  comment      String?
-  createdAt    DateTime     @default(now())
-  pullRequest  PullRequest  @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
-  reviewer     User         @relation("ReviewReviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+  reviewerId    String
+  decision      String
+  comment       String?
+  createdAt     DateTime    @default(now())
+  pullRequest   PullRequest @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  reviewer      User        @relation("ReviewReviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
 
   @@index([pullRequestId, createdAt])
 }
 
 model SourceRecord {
-  id            String          @id @default(cuid())
-  repositoryId  String
-  commitId      String
-  kind          String
-  url           String
-  citation      String?
-  documentHash  String
-  createdAt     DateTime        @default(now())
-  repository    CaseRepository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  commit        DocketCommit    @relation(fields: [commitId], references: [id], onDelete: Cascade)
+  id           String         @id @default(cuid())
+  repositoryId String
+  commitId     String
+  kind         String
+  url          String
+  citation     String?
+  documentHash String
+  attribution  String
+  createdAt    DateTime       @default(now())
+  repository   CaseRepository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  commit       DocketCommit   @relation(fields: [commitId], references: [id], onDelete: Cascade)
 
   @@unique([commitId, url])
   @@index([repositoryId])
 }
 
 model AuditEvent {
-  id           String          @id @default(cuid())
+  id           String         @id @default(cuid())
   repositoryId String
   actorId      String?
   eventType    String
   entityType   String
   entityId     String
   details      String
-  createdAt    DateTime        @default(now())
-  repository   CaseRepository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  actor        User?           @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt    DateTime       @default(now())
+  repository   CaseRepository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  actor        User?          @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([repositoryId, createdAt])
   @@index([entityType, entityId])

@@ -7,14 +7,15 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "tsx --test tests/domain-policies.test.ts",
+    "test": "tsx --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "seed": "tsx scripts/seed.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "import:public-case": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",

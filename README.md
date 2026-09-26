@@ -48,6 +48,12 @@ The application uses Next.js, React, and TypeScript with Prisma and SQLite for l
 
 The domain model covers case repositories, immutable docket commits, branches, forks, pull requests, reviews, public source records, and audit events. Server-side policies protect the canonical public case, require public provenance, isolate forks, reject stale commits and unresolved conflicts, and restrict merges to assigned reviewers or administrators.
 
+The demo fixture is **Carpenter v. United States, No. 16-402**, imported from the public Supreme Court docket and opinion. The importer keeps source text, publication dates, document types, URLs, citations, document hashes, and attribution separate from any future AI summary.
+
+## Deployment target
+
+Deploy the backend API and persistence layer on **Render**. Deploy the Next.js frontend on **Vercel** and point it at the Render API. After the deployed workflow is verified, attach the supplied **`.xyz` domain** to the Vercel frontend.
+
 ## Status
 
 This repository is being built for LexHack 2026. The current implementation is intentionally incremental; see the local implementation plan for the complete twelve-step roadmap.

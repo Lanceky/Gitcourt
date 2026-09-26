@@ -1,25 +1,34 @@
 import demoCaseFixture from "@/data/demo-case.json";
+import { createCommitHash } from "@/lib/domain/commit-hash";
+import {
+  publicCaseFixtureSchema,
+  type PublicCaseFixture,
+  type PublicDocketEntry,
+} from "@/lib/import/public-case-schema";
 
-export type DemoDocketEntry = {
+export type DemoCase = PublicCaseFixture;
+export type DemoDocketEntry = PublicDocketEntry & {
   sha: string;
-  type: string;
-  title: string;
-  summary: string;
-  author: string;
-  date: string;
+  parentSha: string | null;
 };
 
-export type DemoCase = {
-  id: string;
-  title: string;
-  court: string;
-  docketNumber: string;
-  status: "public";
-  summary: string;
-  entries: DemoDocketEntry[];
-};
+export const demoCase = publicCaseFixtureSchema.parse(demoCaseFixture);
 
-export const demoCase: DemoCase = {
-  ...demoCaseFixture,
-  status: "public",
-};
+export function getDemoDocketEntries(): DemoDocketEntry[] {
+  let parentSha: string | null = null;
+
+  return demoCase.entries.map((entry) => {
+    const sha = createCommitHash({
+      parentSha,
+      authorName: entry.author,
+      entryType: entry.type,
+      title: entry.title,
+      content: entry.sourceText,
+      sourceReference: entry.sourceUrl,
+    });
+    const importedEntry = { ...entry, sha, parentSha };
+
+    parentSha = sha;
+    return importedEntry;
+  });
+}

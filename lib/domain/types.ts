@@ -38,6 +38,7 @@ export type CommitProvenance = {
   url: string;
   citation: string;
   documentHash: string;
+  attribution: string;
   isPublicRecord: boolean;
 };
 

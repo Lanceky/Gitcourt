@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { apiErrorResponse, invalidJsonResponse } from "@/lib/api-errors";
+import { rateLimitResponse } from "@/lib/api-rate-limit";
+import {
+  branchNameSchema,
+  gitShaSchema,
+  repositoryIdParamsSchema,
+} from "@/lib/api-validation";
 import { createDemoActor, demoIdentityInputSchema } from "@/lib/demo-identity";
 import { CaseRepositoryService } from "@/lib/domain/case-repository-service";
 import { db } from "@/lib/db";
@@ -10,13 +16,8 @@ export const runtime = "nodejs";
 
 const branchRequestSchema = z.object({
   actor: demoIdentityInputSchema,
-  name: z
-    .string()
-    .trim()
-    .min(3)
-    .max(80)
-    .regex(/^[A-Za-z0-9][A-Za-z0-9._/-]*$/, "Use a safe Git branch name."),
-  fromSha: z.string().regex(/^[0-9a-f]{40}$/i),
+  name: branchNameSchema.min(3),
+  fromSha: gitShaSchema,
 });
 
 type BranchRouteProps = {
@@ -25,7 +26,12 @@ type BranchRouteProps = {
 
 export async function POST(request: Request, { params }: BranchRouteProps) {
   try {
-    const { repositoryId } = await params;
+    const rateLimited = rateLimitResponse(request, "write");
+    if (rateLimited !== null) {
+      return rateLimited;
+    }
+
+    const { repositoryId } = repositoryIdParamsSchema.parse(await params);
     let payload: unknown;
     try {
       payload = await request.json();

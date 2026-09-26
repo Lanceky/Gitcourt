@@ -4,37 +4,26 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { apiErrorResponse, invalidJsonResponse } from "@/lib/api-errors";
+import { rateLimitResponse } from "@/lib/api-rate-limit";
+import {
+  branchNameSchema,
+  publicHttpsUrlSchema,
+  repositoryIdParamsSchema,
+} from "@/lib/api-validation";
 import { createDemoActor, demoIdentityInputSchema } from "@/lib/demo-identity";
 import { CaseRepositoryService } from "@/lib/domain/case-repository-service";
 import { db } from "@/lib/db";
 
 export const runtime = "nodejs";
 
-const publicHttpsUrl = z
-  .string()
-  .url()
-  .refine((value) => new URL(value).protocol === "https:", {
-    message: "Public sources must use HTTPS URLs.",
-  });
-
 const pullRequestRequestSchema = z.object({
   actor: demoIdentityInputSchema,
   reviewer: demoIdentityInputSchema.optional(),
-  sourceBranchName: z
-    .string()
-    .trim()
-    .min(1)
-    .max(80)
-    .regex(/^[A-Za-z0-9][A-Za-z0-9._/-]*$/, "Use a safe Git branch name."),
-  targetBranchName: z
-    .string()
-    .trim()
-    .min(1)
-    .max(80)
-    .regex(/^[A-Za-z0-9][A-Za-z0-9._/-]*$/, "Use a safe Git branch name."),
+  sourceBranchName: branchNameSchema,
+  targetBranchName: branchNameSchema,
   title: z.string().trim().min(3).max(160),
   description: z.string().trim().min(10).max(5000),
-  sourceUrl: publicHttpsUrl,
+  sourceUrl: publicHttpsUrlSchema,
   citation: z.string().trim().min(3).max(500),
   sourceExcerpt: z.string().trim().min(3).max(5000),
   attribution: z.string().trim().min(3).max(300),
@@ -49,7 +38,7 @@ export async function GET(
   { params }: PullRequestRouteProps,
 ) {
   try {
-    const { repositoryId } = await params;
+    const { repositoryId } = repositoryIdParamsSchema.parse(await params);
     const service = new CaseRepositoryService(db);
     const pullRequests = await service.listPullRequests(repositoryId);
     return NextResponse.json({ pullRequests });
@@ -63,7 +52,12 @@ export async function POST(
   { params }: PullRequestRouteProps,
 ) {
   try {
-    const { repositoryId } = await params;
+    const rateLimited = rateLimitResponse(request, "write");
+    if (rateLimited !== null) {
+      return rateLimited;
+    }
+
+    const { repositoryId } = repositoryIdParamsSchema.parse(await params);
     let payload: unknown;
     try {
       payload = await request.json();

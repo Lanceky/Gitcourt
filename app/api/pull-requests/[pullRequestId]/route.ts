@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { apiErrorResponse } from "@/lib/api-errors";
+import { pullRequestIdParamsSchema } from "@/lib/api-validation";
 import { CaseRepositoryService } from "@/lib/domain/case-repository-service";
 import { db } from "@/lib/db";
 
@@ -15,7 +16,7 @@ export async function GET(
   { params }: PullRequestDetailRouteProps,
 ) {
   try {
-    const { pullRequestId } = await params;
+    const { pullRequestId } = pullRequestIdParamsSchema.parse(await params);
     const service = new CaseRepositoryService(db);
     const pullRequest = await service.getPullRequest(pullRequestId);
     return NextResponse.json({ pullRequest });

@@ -116,6 +116,18 @@ test("Git Court service keeps Prisma metadata and Git history synchronized", asy
     assert.equal(initialSummary.aiStatus, "manual-fallback");
     assert.equal(initialSummary.aiSourceCommitSha, initial.sha);
     assert.equal(initialSummary.aiSummary, "Initial student theory");
+    await expectDomainError("PROVENANCE_REQUIRED", () =>
+      service.appendCommit({
+        repositoryId: repository.id,
+        branchName: "main",
+        actor: student,
+        parentSha: initial.sha,
+        entryType: "argument",
+        title: "Missing source theory",
+        content: "This write must be rejected without public provenance.",
+        provenance: null,
+      }),
+    );
 
     const feature = await service.createBranch({
       repositoryId: repository.id,
@@ -123,6 +135,14 @@ test("Git Court service keeps Prisma metadata and Git history synchronized", asy
       actor: student,
     });
     assert.equal(feature.headSha, initial.sha);
+    await expectDomainError("BRANCH_EXISTS", () =>
+      service.createBranch({
+        repositoryId: repository.id,
+        name: "alternate-standing",
+        actor: student,
+        fromSha: initial.sha,
+      }),
+    );
 
     const alternate = await service.appendCommit({
       repositoryId: repository.id,
@@ -288,6 +308,18 @@ test("Git Court service keeps Prisma metadata and Git history synchronized", asy
     assert.ok(
       forkPullRequest.diff[0].lines.some((line) => line.type === "addition"),
     );
+    await expectDomainError("PULL_REQUEST_EXISTS", () =>
+      service.createPullRequest({
+        repositoryId: fork.id,
+        sourceBranchName: forkBranch.name,
+        targetBranchName: "main",
+        actor: student,
+        reviewer,
+        title: "Duplicate alternate standing review",
+        description: "A second open review must be rejected.",
+        provenance,
+      }),
+    );
 
     await expectDomainError("REVIEW_REQUIRED", () =>
       service.mergePullRequest({
@@ -429,6 +461,13 @@ test("Git Court service keeps Prisma metadata and Git history synchronized", asy
       documentPath: "arguments/target-note.md",
       provenance,
     });
+    const requestedChanges = await service.reviewPullRequest({
+      pullRequestId: stalePullRequest.id,
+      actor: reviewer,
+      decision: "request_changes",
+      comment: "Please explain the changed target assumption.",
+    });
+    assert.equal(requestedChanges.reviews.at(-1)?.decision, "request_changes");
     await service.reviewPullRequest({
       pullRequestId: stalePullRequest.id,
       actor: reviewer,

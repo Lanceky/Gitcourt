@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 
 import { apiErrorResponse } from "@/lib/api-errors";
+import { rateLimitResponse } from "@/lib/api-rate-limit";
+import { gitShaSchema, repositoryIdParamsSchema } from "@/lib/api-validation";
 import { CaseRepositoryService } from "@/lib/domain/case-repository-service";
 import { db } from "@/lib/db";
 
 export const runtime = "nodejs";
-
-const shaSchema = z
-  .string()
-  .regex(/^[0-9a-f]{40}$/i, "Use a full Git commit SHA.");
 
 type SummaryRouteProps = {
   params: Promise<{ repositoryId: string; sha: string }>;
@@ -17,9 +14,10 @@ type SummaryRouteProps = {
 
 async function getParams(params: SummaryRouteProps["params"]) {
   const resolved = await params;
+  const { repositoryId } = repositoryIdParamsSchema.parse(resolved);
   return {
-    repositoryId: resolved.repositoryId,
-    sha: shaSchema.parse(resolved.sha),
+    repositoryId,
+    sha: gitShaSchema.parse(resolved.sha),
   };
 }
 
@@ -34,8 +32,13 @@ export async function GET(_request: Request, { params }: SummaryRouteProps) {
   }
 }
 
-export async function POST(_request: Request, { params }: SummaryRouteProps) {
+export async function POST(request: Request, { params }: SummaryRouteProps) {
   try {
+    const rateLimited = rateLimitResponse(request, "ai");
+    if (rateLimited !== null) {
+      return rateLimited;
+    }
+
     const { repositoryId, sha } = await getParams(params);
     const service = new CaseRepositoryService(db);
     const summary = await service.generateCommitSummary(repositoryId, sha);

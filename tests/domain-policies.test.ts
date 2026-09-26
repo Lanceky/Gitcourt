@@ -98,6 +98,12 @@ test("append policy rejects stale branches and accepts sourced fork commits", ()
   assert.doesNotThrow(() =>
     assertCanAppendCommit(studentFork, null, commitInput),
   );
+  expectDomainError("PROVENANCE_REQUIRED", () =>
+    assertCanAppendCommit(studentFork, null, {
+      ...commitInput,
+      provenance: null,
+    }),
+  );
 });
 
 test("commit hashes are stable and content-sensitive", () => {

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { apiErrorResponse, invalidJsonResponse } from "@/lib/api-errors";
+import { rateLimitResponse } from "@/lib/api-rate-limit";
+import { fixtureOrGitShaSchema } from "@/lib/api-validation";
 import { db } from "@/lib/db";
 import { demoCase, getDemoDocketEntries } from "@/lib/demo-case";
 import { createDemoActor, demoIdentityInputSchema } from "@/lib/demo-identity";
@@ -20,7 +22,7 @@ const forkRequestSchema = z.object({
       "Use lowercase letters, numbers, and hyphens for the fork slug.",
     ),
   title: z.string().trim().min(3).max(120),
-  fromSha: z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i),
+  fromSha: fixtureOrGitShaSchema,
 });
 
 type ForkRouteProps = {
@@ -29,6 +31,11 @@ type ForkRouteProps = {
 
 export async function POST(request: Request, { params }: ForkRouteProps) {
   try {
+    const rateLimited = rateLimitResponse(request, "write");
+    if (rateLimited !== null) {
+      return rateLimited;
+    }
+
     const { slug } = await params;
     if (slug !== demoCase.slug) {
       return NextResponse.json(

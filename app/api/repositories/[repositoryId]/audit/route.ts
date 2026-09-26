@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { apiErrorResponse } from "@/lib/api-errors";
+import { repositoryIdParamsSchema } from "@/lib/api-validation";
 import { CaseRepositoryService } from "@/lib/domain/case-repository-service";
 import { db } from "@/lib/db";
 
@@ -12,7 +13,7 @@ type AuditRouteProps = {
 
 export async function GET(request: Request, { params }: AuditRouteProps) {
   try {
-    const { repositoryId } = await params;
+    const { repositoryId } = repositoryIdParamsSchema.parse(await params);
     const service = new CaseRepositoryService(db);
     const events = await service.listAuditEvents(repositoryId);
     return NextResponse.json({ events });

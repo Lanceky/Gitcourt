@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 
 import CaseRepositoryExplorer from "@/app/cases/[slug]/case-repository-explorer";
+import MootCourtWorkspace from "@/app/cases/[slug]/moot-court-workspace";
 import { demoCase, getDemoDocketEntries } from "@/lib/demo-case";
 
 type CasePageProps = {
@@ -60,6 +61,15 @@ export default async function CasePage({ params }: CasePageProps) {
             </span>
           </div>
         </section>
+
+        <MootCourtWorkspace
+          caseSlug={demoCase.slug}
+          caseTitle={demoCase.title}
+          docketNumber={demoCase.docketNumber}
+          entries={docketEntries}
+          sourceAttribution={demoCase.sourceAttribution}
+          sourceUrl={demoCase.sourceUrl}
+        />
 
         <div className="repository-grid">
           <section className="repository-main">

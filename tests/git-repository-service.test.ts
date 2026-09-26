@@ -214,14 +214,49 @@ test("Git Court service keeps Prisma metadata and Git history synchronized", asy
       sourceRepositoryId: repository.id,
       slug: "step-five-service-fork",
       actor: student,
+      fromSha: initial.sha,
     });
     const forkHistory = await service.getHistory(fork.id, "main");
-    assert.ok(forkHistory.some((commit) => commit.sha === merged.sha));
+    assert.deepEqual(
+      forkHistory.map((commit) => commit.sha),
+      [initial.sha],
+    );
     assert.equal(
       await adapter.getBranchHead(repository.id, "main"),
       merged.sha,
     );
+    assert.equal(await adapter.getBranchHead(fork.id, "main"), initial.sha);
     assert.equal(competing.parentSha, initial.sha);
+
+    const forkBranch = await service.createBranch({
+      repositoryId: fork.id,
+      name: "alternate-standing-argument",
+      actor: student,
+      fromSha: initial.sha,
+    });
+    assert.equal(forkBranch.headSha, initial.sha);
+
+    const forkArgument = await service.appendCommit({
+      repositoryId: fork.id,
+      branchName: forkBranch.name,
+      actor: student,
+      parentSha: initial.sha,
+      entryType: "student-argument",
+      title: "Alternate standing argument",
+      content: "The fork explores a separate interpretation of standing.",
+      summary: "A student-authored moot-court theory.",
+      documentPath: "arguments/alternate-standing-argument.md",
+      provenance,
+    });
+    assert.equal(forkArgument.parentSha, initial.sha);
+    assert.equal(
+      await adapter.getBranchHead(fork.id, forkBranch.name),
+      forkArgument.sha,
+    );
+    assert.equal(
+      await adapter.getBranchHead(repository.id, "main"),
+      merged.sha,
+    );
 
     const firstImport = await service.importPublicCase(demoCase);
     const secondImport = await service.importPublicCase(demoCase);

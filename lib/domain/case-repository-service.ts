@@ -386,11 +386,29 @@ export class CaseRepositoryService {
 
       assertCanForkRepository(repositoryPolicy(source));
 
+      const sourceMainBranch = source.branches.find(
+        (branch) => branch.name === "main",
+      );
+      const sourceHeadSha = sourceMainBranch?.headCommit?.sha ?? null;
+      const startingSha = input.fromSha ?? sourceHeadSha;
+      if (
+        startingSha !== null &&
+        !source.commits.some((commit) => commit.sha === startingSha)
+      ) {
+        throw new DomainError(
+          "COMMIT_NOT_FOUND",
+          "The requested fork starting commit does not belong to the source case.",
+        );
+      }
+
       const repositoryId = randomUUID();
       let cloned = false;
       try {
         await this.git.clone(source.id, repositoryId);
         cloned = true;
+        if (startingSha !== sourceHeadSha) {
+          await this.git.restoreBranch(repositoryId, "main", startingSha);
+        }
 
         return await this.database.$transaction(async (transaction) => {
           const actor = await this.ensureActor(transaction, input.actor);
@@ -454,15 +472,19 @@ export class CaseRepositoryService {
           }
 
           for (const sourceBranch of source.branches) {
+            const branchHeadSha =
+              sourceBranch.name === "main"
+                ? startingSha
+                : (sourceBranch.headCommit?.sha ?? null);
             await transaction.branch.create({
               data: {
                 repositoryId,
                 name: sourceBranch.name,
                 ownerId: actor.id,
                 headCommitId:
-                  sourceBranch.headCommit === null
+                  branchHeadSha === null
                     ? null
-                    : (commitIdBySha.get(sourceBranch.headCommit.sha) ?? null),
+                    : (commitIdBySha.get(branchHeadSha) ?? null),
                 isProtected: sourceBranch.isProtected,
                 createdAt: sourceBranch.createdAt,
                 updatedAt: sourceBranch.updatedAt,
@@ -480,6 +502,7 @@ export class CaseRepositoryService {
               details: JSON.stringify({
                 parentRepositoryId: source.id,
                 parentSlug: source.slug,
+                startingSha,
               }),
             },
           });

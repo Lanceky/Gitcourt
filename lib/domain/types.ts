@@ -86,6 +86,7 @@ export type ForkRepositoryInput = {
   actor: Actor;
   title?: string;
   isPublic?: boolean;
+  fromSha?: string | null;
 };
 
 export type AppendDocketEntryInput = {

@@ -117,7 +117,8 @@ export class IsomorphicGitRepositoryAdapter implements RepositoryAdapter {
 
   constructor(rootDirectory = process.env.GIT_REPOSITORIES_PATH) {
     this.root = path.resolve(
-      rootDirectory ?? path.join(process.cwd(), ".data", "repositories"),
+      /* turbopackIgnore: true */ rootDirectory ??
+        path.join(process.cwd(), ".data", "repositories"),
     );
   }
 
@@ -241,10 +242,10 @@ export class IsomorphicGitRepositoryAdapter implements RepositoryAdapter {
 
       try {
         if (previousHeadSha === null) {
-          await git.deleteRef({
+          await git.deleteBranch({
             fs,
             dir: repositoryPath,
-            ref: `refs/heads/${branchName}`,
+            ref: branchName,
           });
           return;
         }
@@ -252,7 +253,7 @@ export class IsomorphicGitRepositoryAdapter implements RepositoryAdapter {
         await git.writeRef({
           fs,
           dir: repositoryPath,
-          ref: `refs/heads/${branchName}`,
+          ref: branchName,
           value: previousHeadSha,
           force: true,
         });

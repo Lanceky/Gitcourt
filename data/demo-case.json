@@ -1,0 +1,34 @@
+{
+  "id": "demo-public-case",
+  "title": "Rivera v. State (Demo Fixture)",
+  "court": "Demo Appellate Court",
+  "docketNumber": "DEMO-2026-001",
+  "status": "public",
+  "summary": "A seeded public-record placeholder used to exercise the repository interface before a source case is curated.",
+  "entries": [
+    {
+      "sha": "a1b2c3d",
+      "type": "complaint",
+      "title": "Case opened",
+      "summary": "The initial public filing opens the case record.",
+      "author": "Court clerk",
+      "date": "2026-01-14"
+    },
+    {
+      "sha": "d4e5f6a",
+      "type": "brief",
+      "title": "Opening brief filed",
+      "summary": "The appellant presents the issue for review.",
+      "author": "Appellant",
+      "date": "2026-02-02"
+    },
+    {
+      "sha": "b7c8d9e",
+      "type": "opinion",
+      "title": "Opinion issued",
+      "summary": "The panel publishes its decision and reasoning.",
+      "author": "Appellate panel",
+      "date": "2026-03-18"
+    }
+  ]
+}

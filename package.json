@@ -7,12 +7,17 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "test": "tsx --test tests/domain-policies.test.ts",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@prisma/client": "6.19.3",
     "next": "^16.3.4",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -26,6 +31,7 @@
     "eslint-config-next": "^16.3.4",
     "ignore": "^7.0.8",
     "prettier": "^3.9.6",
+    "prisma": "6.19.3",
     "tsx": "^4.23.13",
     "typescript": "^5.9.3"
   }

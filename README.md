@@ -42,9 +42,11 @@ Git Court is an educational research tool, not legal advice. It uses public case
 
 The hackathon MVP will not provide legal advice, ingest active or confidential matters, replace a court docket, operate as a general-purpose Git hosting service, or attempt to cover every jurisdiction. It will prioritize one carefully curated public appellate case and a complete, understandable workflow over a large case database.
 
-## Planned stack
+## Current foundation
 
-The implementation is planned with Next.js, React, TypeScript, Prisma, SQLite for local development, and a replaceable `isomorphic-git` repository adapter. A persistent PostgreSQL deployment can be added without changing the domain workflow.
+The application uses Next.js, React, and TypeScript with Prisma and SQLite for local development. The repository layer is designed to remain replaceable so `isomorphic-git` and a persistent PostgreSQL deployment can be added without changing the domain workflow.
+
+The domain model covers case repositories, immutable docket commits, branches, forks, pull requests, reviews, public source records, and audit events. Server-side policies protect the canonical public case, require public provenance, isolate forks, reject stale commits and unresolved conflicts, and restrict merges to assigned reviewers or administrators.
 
 ## Status
 

@@ -98,26 +98,33 @@ model Branch {
 }
 
 model PullRequest {
-  id             String         @id @default(cuid())
-  repositoryId   String
-  sourceBranchId String
-  targetBranchId String
-  authorId       String
-  reviewerId     String?
-  mergeCommitId  String?
-  title          String
-  description    String
-  status         String         @default("open")
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  mergedAt       DateTime?
-  repository     CaseRepository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  sourceBranch   Branch         @relation("PullRequestSource", fields: [sourceBranchId], references: [id], onDelete: Restrict)
-  targetBranch   Branch         @relation("PullRequestTarget", fields: [targetBranchId], references: [id], onDelete: Restrict)
-  author         User           @relation("PullRequestAuthor", fields: [authorId], references: [id], onDelete: Restrict)
-  reviewer       User?          @relation("PullRequestReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
-  mergeCommit    DocketCommit?  @relation("PullRequestMergeCommit", fields: [mergeCommitId], references: [id], onDelete: SetNull)
-  reviews        Review[]
+  id                 String         @id @default(cuid())
+  repositoryId       String
+  sourceBranchId     String
+  targetBranchId     String
+  authorId           String
+  reviewerId         String?
+  mergeCommitId      String?
+  title              String
+  description        String
+  status             String         @default("open")
+  sourceHeadSha      String
+  targetHeadSha      String
+  hasConflicts       Boolean        @default(false)
+  sourceUrl          String?
+  sourceCitation     String?
+  sourceDocumentHash String?
+  sourceAttribution  String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  mergedAt           DateTime?
+  repository         CaseRepository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  sourceBranch       Branch         @relation("PullRequestSource", fields: [sourceBranchId], references: [id], onDelete: Restrict)
+  targetBranch       Branch         @relation("PullRequestTarget", fields: [targetBranchId], references: [id], onDelete: Restrict)
+  author             User           @relation("PullRequestAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  reviewer           User?          @relation("PullRequestReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  mergeCommit        DocketCommit?  @relation("PullRequestMergeCommit", fields: [mergeCommitId], references: [id], onDelete: SetNull)
+  reviews            Review[]
 
   @@index([repositoryId, status])
   @@index([reviewerId])

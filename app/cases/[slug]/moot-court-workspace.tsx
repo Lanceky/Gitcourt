@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import type { DemoDocketEntry } from "@/lib/demo-case";
+import PullRequestWorkspace from "@/app/cases/[slug]/pull-request-workspace";
 
 type MootCourtWorkspaceProps = {
   caseSlug: string;
@@ -621,6 +622,19 @@ export default function MootCourtWorkspace({
               )}
             </>
           )}
+          {fork !== null && branch !== null && commit !== null ? (
+            <PullRequestWorkspace
+              citation={citation}
+              documentPath={commit.documentPath}
+              identity={identity}
+              repositoryId={fork.id}
+              sourceAttribution={sourceAttribution}
+              sourceBranchName={branch.name}
+              sourceExcerpt={sourceExcerpt}
+              sourceUrl={sourceUrl}
+              targetBranchName="main"
+            />
+          ) : null}
         </div>
       )}
     </section>

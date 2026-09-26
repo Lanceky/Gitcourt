@@ -144,6 +144,36 @@ export function assertCanMergePullRequest(
   }
 }
 
+export function assertCanReviewPullRequest(
+  pullRequest: Pick<PullRequestPolicyRecord, "status" | "reviewerId">,
+  actor: Actor,
+): void {
+  if (pullRequest.status !== "open") {
+    throw new DomainError(
+      "PULL_REQUEST_NOT_OPEN",
+      "Only open pull requests can receive reviews.",
+    );
+  }
+
+  if (actor.role !== "reviewer" && actor.role !== "admin") {
+    throw new DomainError(
+      "REVIEW_FORBIDDEN",
+      "Only a reviewer or administrator can review a pull request.",
+    );
+  }
+
+  if (
+    actor.role === "reviewer" &&
+    pullRequest.reviewerId !== null &&
+    pullRequest.reviewerId !== actor.id
+  ) {
+    throw new DomainError(
+      "REVIEW_FORBIDDEN",
+      "Only the assigned reviewer can review this pull request.",
+    );
+  }
+}
+
 export function assertPublicRecordProvenance(
   provenance: CommitProvenance,
 ): void {

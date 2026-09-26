@@ -111,3 +111,93 @@ export type MergeBranchInput = {
   message: string;
   provenance: CommitProvenance;
 };
+
+export type ReviewDecision = "approve" | "request_changes" | "comment";
+
+export type CreatePullRequestInput = {
+  repositoryId: string;
+  sourceBranchName: string;
+  targetBranchName: string;
+  actor: Actor;
+  reviewer?: Actor;
+  title: string;
+  description: string;
+  provenance: CommitProvenance;
+};
+
+export type ReviewPullRequestInput = {
+  pullRequestId: string;
+  actor: Actor;
+  decision: ReviewDecision;
+  comment?: string;
+};
+
+export type MergePullRequestInput = {
+  pullRequestId: string;
+  actor: Actor;
+};
+
+export type CommitSummary = {
+  id: string;
+  sha: string;
+  parentSha: string | null;
+  parentShas: string[];
+  authorName: string;
+  entryType: string;
+  title: string;
+  content: string;
+  documentPath: string | null;
+  sourceReference: string | null;
+  sourceUrl: string | null;
+  sourceCitation: string | null;
+  sourceDocumentHash: string | null;
+  attribution: string;
+  publishedAt: Date;
+  createdAt: Date;
+  docketLabel: string;
+};
+
+export type PullRequestSummary = {
+  id: string;
+  repositoryId: string;
+  sourceBranchName: string;
+  targetBranchName: string;
+  sourceHeadSha: string;
+  targetHeadSha: string;
+  title: string;
+  description: string;
+  status: string;
+  hasConflicts: boolean;
+  authorName: string;
+  reviewerName: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  mergedAt: Date | null;
+  sourceUrl: string | null;
+  sourceCitation: string | null;
+  sourceAttribution: string | null;
+  reviews: Array<{
+    id: string;
+    reviewerName: string;
+    decision: string;
+    comment: string | null;
+    createdAt: Date;
+  }>;
+  diff: import("@/lib/git/diff").FileDiff[];
+};
+
+export type AuditEventSummary = {
+  id: string;
+  eventType: string;
+  entityType: string;
+  entityId: string;
+  details: Record<string, unknown>;
+  actorName: string | null;
+  createdAt: Date;
+};
+
+export type BlameSummaryLine = {
+  lineNumber: number;
+  text: string;
+  commit: CommitSummary;
+};

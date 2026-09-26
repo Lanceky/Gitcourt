@@ -24,8 +24,8 @@ Git Court is an educational research tool, not legal advice. It uses public case
 1. Open a curated public appellate case and read its plain-language history.
 2. Fork the case for moot court and create an `alternate-standing-argument` branch.
 3. Add an argument commit without changing the public case.
-4. Open a pull request, inspect the redline, and show a conflict as a circuit split.
-5. Use blame to trace a clause to its commit, author, date, and public source.
+4. Open a pull request, inspect the redline, and have a clinic mentor approve or request changes.
+5. Use blame and the audit trail to trace a clause to its commit, author, date, and public source.
 
 ### Acceptance criteria
 
@@ -35,6 +35,7 @@ Git Court is an educational research tool, not legal advice. It uses public case
 - A pull request shows changed content and supports review before merge.
 - A conflicting edit is explained as a legal-theory disagreement and cannot merge silently.
 - Blame identifies the commit, author, date, and source for each changed line or paragraph.
+- Forks, commits, reviews, conflicts, and merges appear in an accountability timeline.
 - The original public case remains read-only throughout the student workflow.
 - AI-generated summaries, when enabled, are source-linked, labeled for verification, and never presented as legal advice.
 
@@ -51,6 +52,8 @@ The domain model covers case repositories, immutable docket commits, branches, f
 The demo fixture is **Carpenter v. United States, No. 16-402**, imported from the public Supreme Court docket and opinion. The importer keeps source text, publication dates, document types, URLs, citations, document hashes, and attribution separate from any future AI summary.
 
 The read-first interface is available at `/cases/carpenter-v-united-states`: it presents the plain-language headnote, canonical `main` branch, searchable docket timeline, and source-backed commit detail without requiring an account. Its moot-court workspace accepts an explicit demo identity, creates an isolated fork from a selected public milestone, and previews a student argument before committing it to a separate branch.
+
+After the argument commit, the workspace can open a pull request from the theory branch to the fork's `main` branch. The review panel renders changed files and line-level additions, deletions, and context; it records comments, requests for changes, approvals, and the resulting merge SHA. The blame and audit panels keep student authorship, public source provenance, and workflow activity visibly separate. Reviewer identities are labeled demo identities rather than authentication and must be replaced with real authentication before production use.
 
 ## Deployment target
 

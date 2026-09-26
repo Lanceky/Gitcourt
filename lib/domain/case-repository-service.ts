@@ -6,8 +6,11 @@ import { DomainError } from "@/lib/domain/errors";
 import {
   assertCanAppendCommit,
   assertCanForkRepository,
+  assertCanMergePullRequest,
+  assertCanReviewPullRequest,
   assertCanWriteRepository,
   assertForkIsolation,
+  assertPublicRecordProvenance,
 } from "@/lib/domain/policies";
 import type {
   Actor,
@@ -17,8 +20,16 @@ import type {
   CreateRepositoryInput,
   ForkRepositoryInput,
   MergeBranchInput,
+  MergePullRequestInput,
+  ReviewPullRequestInput,
+  CreatePullRequestInput,
+  PullRequestSummary,
+  AuditEventSummary,
+  BlameSummaryLine,
+  CommitSummary,
   RepositoryPolicyRecord,
 } from "@/lib/domain/types";
+export type { CommitSummary } from "@/lib/domain/types";
 import { GitRepositoryError } from "@/lib/git/errors";
 import {
   argumentDocumentPath,
@@ -80,24 +91,6 @@ export type BranchSummary = {
   isProtected: boolean;
 };
 
-export type CommitSummary = {
-  id: string;
-  sha: string;
-  parentSha: string | null;
-  parentShas: string[];
-  authorName: string;
-  entryType: string;
-  title: string;
-  content: string;
-  documentPath: string | null;
-  sourceReference: string | null;
-  sourceUrl: string | null;
-  attribution: string;
-  publishedAt: Date;
-  createdAt: Date;
-  docketLabel: string;
-};
-
 export type CommitResult = {
   id: string;
   sha: string;
@@ -107,6 +100,19 @@ export type CommitResult = {
 };
 
 export type BlameLine = GitBlameLine;
+
+type PullRequestWithRelations = Prisma.PullRequestGetPayload<{
+  include: {
+    sourceBranch: true;
+    targetBranch: true;
+    author: true;
+    reviewer: true;
+    reviews: {
+      include: { reviewer: true };
+      orderBy: { createdAt: "asc" };
+    };
+  };
+}>;
 
 const repositorySlugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -639,6 +645,463 @@ export class CaseRepositoryService {
     });
   }
 
+  async createPullRequest(
+    input: CreatePullRequestInput,
+  ): Promise<PullRequestSummary> {
+    return this.execute(async () => {
+      assertServiceBranchName(input.sourceBranchName);
+      assertServiceBranchName(input.targetBranchName);
+      if (input.sourceBranchName === input.targetBranchName) {
+        throw new DomainError(
+          "MERGE_FORBIDDEN",
+          "A pull request must compare two different branches.",
+        );
+      }
+      assertPublicRecordProvenance(input.provenance);
+
+      const repository = await this.requireRepository(input.repositoryId);
+      assertCanWriteRepository(repositoryPolicy(repository));
+      const [sourceBranch, targetBranch] = await Promise.all([
+        this.database.branch.findUnique({
+          where: {
+            repositoryId_name: {
+              repositoryId: input.repositoryId,
+              name: input.sourceBranchName,
+            },
+          },
+          include: { headCommit: { select: { sha: true } } },
+        }),
+        this.database.branch.findUnique({
+          where: {
+            repositoryId_name: {
+              repositoryId: input.repositoryId,
+              name: input.targetBranchName,
+            },
+          },
+          include: { headCommit: { select: { sha: true } } },
+        }),
+      ]);
+
+      if (sourceBranch === null || targetBranch === null) {
+        throw new DomainError(
+          "BRANCH_NOT_FOUND",
+          "Both pull request branches must exist.",
+        );
+      }
+      if (
+        sourceBranch.headCommit === null ||
+        targetBranch.headCommit === null
+      ) {
+        throw new DomainError(
+          "COMMIT_NOT_FOUND",
+          "Both pull request branches must have commits.",
+        );
+      }
+
+      const existing = await this.database.pullRequest.findFirst({
+        where: {
+          repositoryId: input.repositoryId,
+          sourceBranchId: sourceBranch.id,
+          targetBranchId: targetBranch.id,
+          status: "open",
+        },
+      });
+      if (existing !== null) {
+        throw new DomainError(
+          "PULL_REQUEST_EXISTS",
+          "An open pull request already compares these branches.",
+        );
+      }
+
+      const [author, reviewer] = await Promise.all([
+        this.findOrCreateActor(input.actor),
+        input.reviewer === undefined
+          ? Promise.resolve(null)
+          : this.findOrCreateActor(input.reviewer),
+      ]);
+      const mergePreview = await this.git.previewMergeBranches({
+        repositoryId: input.repositoryId,
+        targetBranchName: input.targetBranchName,
+        sourceBranchName: input.sourceBranchName,
+      });
+
+      const pullRequest = await this.database.$transaction(
+        async (transaction) => {
+          const created = await transaction.pullRequest.create({
+            data: {
+              repositoryId: input.repositoryId,
+              sourceBranchId: sourceBranch.id,
+              targetBranchId: targetBranch.id,
+              authorId: author.id,
+              reviewerId: reviewer?.id,
+              title: input.title,
+              description: input.description,
+              sourceHeadSha: sourceBranch.headCommit?.sha ?? "",
+              targetHeadSha: targetBranch.headCommit?.sha ?? "",
+              hasConflicts: mergePreview.hasConflicts,
+              sourceUrl: input.provenance.url,
+              sourceCitation: input.provenance.citation,
+              sourceDocumentHash: input.provenance.documentHash,
+              sourceAttribution: input.provenance.attribution,
+            },
+            include: {
+              sourceBranch: true,
+              targetBranch: true,
+              author: true,
+              reviewer: true,
+              reviews: {
+                include: { reviewer: true },
+                orderBy: { createdAt: "asc" },
+              },
+            },
+          });
+
+          await transaction.auditEvent.create({
+            data: {
+              repositoryId: input.repositoryId,
+              actorId: author.id,
+              eventType: "pull_request.created",
+              entityType: "pull_request",
+              entityId: created.id,
+              details: JSON.stringify({
+                sourceBranch: input.sourceBranchName,
+                targetBranch: input.targetBranchName,
+                sourceHeadSha: sourceBranch.headCommit?.sha,
+                targetHeadSha: targetBranch.headCommit?.sha,
+                hasConflicts: mergePreview.hasConflicts,
+              }),
+            },
+          });
+          if (mergePreview.hasConflicts) {
+            await transaction.auditEvent.create({
+              data: {
+                repositoryId: input.repositoryId,
+                actorId: author.id,
+                eventType: "pull_request.conflict",
+                entityType: "pull_request",
+                entityId: created.id,
+                details: JSON.stringify({
+                  sourceBranch: input.sourceBranchName,
+                  targetBranch: input.targetBranchName,
+                  reason: "conflicting document changes",
+                }),
+              },
+            });
+          }
+
+          return created;
+        },
+      );
+      const diff = await this.git.getDiff(
+        input.repositoryId,
+        targetBranch.headCommit.sha,
+        sourceBranch.headCommit.sha,
+      );
+
+      return this.toPullRequestSummary(pullRequest, diff);
+    });
+  }
+
+  async getPullRequest(pullRequestId: string): Promise<PullRequestSummary> {
+    return this.execute(async () => {
+      const pullRequest = await this.findPullRequest(pullRequestId);
+      const diff = await this.git.getDiff(
+        pullRequest.repositoryId,
+        pullRequest.targetHeadSha,
+        pullRequest.sourceHeadSha,
+      );
+      return this.toPullRequestSummary(pullRequest, diff);
+    });
+  }
+
+  async listPullRequests(repositoryId: string): Promise<PullRequestSummary[]> {
+    return this.execute(async () => {
+      await this.requireRepository(repositoryId);
+      const pullRequests = await this.database.pullRequest.findMany({
+        where: { repositoryId },
+        include: {
+          sourceBranch: true,
+          targetBranch: true,
+          author: true,
+          reviewer: true,
+          reviews: {
+            include: { reviewer: true },
+            orderBy: { createdAt: "asc" },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      return Promise.all(
+        pullRequests.map(async (pullRequest) => {
+          const diff = await this.git.getDiff(
+            repositoryId,
+            pullRequest.targetHeadSha,
+            pullRequest.sourceHeadSha,
+          );
+          return this.toPullRequestSummary(pullRequest, diff);
+        }),
+      );
+    });
+  }
+
+  async reviewPullRequest(
+    input: ReviewPullRequestInput,
+  ): Promise<PullRequestSummary> {
+    return this.execute(async () => {
+      if (
+        input.decision !== "approve" &&
+        input.decision !== "request_changes" &&
+        input.decision !== "comment"
+      ) {
+        throw new DomainError(
+          "INVALID_REVIEW_DECISION",
+          "Review decisions must approve, request changes, or comment.",
+        );
+      }
+
+      const pullRequest = await this.findPullRequest(input.pullRequestId);
+      const actorRecord = await this.findOrCreateActor(input.actor);
+      assertCanReviewPullRequest(
+        {
+          status: pullRequest.status,
+          reviewerId: pullRequest.reviewerId,
+        },
+        { ...input.actor, id: actorRecord.id },
+      );
+
+      await this.database.$transaction(async (transaction) => {
+        await transaction.review.create({
+          data: {
+            pullRequestId: pullRequest.id,
+            reviewerId: actorRecord.id,
+            decision: input.decision,
+            comment: input.comment?.trim() || undefined,
+          },
+        });
+        await transaction.auditEvent.create({
+          data: {
+            repositoryId: pullRequest.repositoryId,
+            actorId: actorRecord.id,
+            eventType: "pull_request.reviewed",
+            entityType: "pull_request",
+            entityId: pullRequest.id,
+            details: JSON.stringify({
+              decision: input.decision,
+              comment: input.comment?.trim() || null,
+            }),
+          },
+        });
+      });
+
+      return this.getPullRequest(input.pullRequestId);
+    });
+  }
+
+  async mergePullRequest(
+    input: MergePullRequestInput,
+  ): Promise<{ pullRequest: PullRequestSummary; mergeCommit: CommitResult }> {
+    return this.execute(async () => {
+      const pullRequest = await this.findPullRequest(input.pullRequestId);
+      const actorRecord = await this.findOrCreateActor(input.actor);
+      const actor = { ...input.actor, id: actorRecord.id };
+      assertCanMergePullRequest(
+        {
+          status: pullRequest.status,
+          sourceBranchId: pullRequest.sourceBranchId,
+          targetBranchId: pullRequest.targetBranchId,
+          reviewerId: pullRequest.reviewerId,
+          hasConflicts: pullRequest.hasConflicts,
+        },
+        actor,
+      );
+
+      const latestReview = pullRequest.reviews.at(-1);
+      const hasApproval = pullRequest.reviews.some(
+        (review) =>
+          review.decision === "approve" &&
+          (pullRequest.reviewerId === null ||
+            review.reviewerId === pullRequest.reviewerId),
+      );
+      if (!hasApproval || latestReview?.decision === "request_changes") {
+        throw new DomainError(
+          "REVIEW_REQUIRED",
+          "An approving review is required before this pull request can merge.",
+        );
+      }
+
+      const [sourceBranch, targetBranch] = await Promise.all([
+        this.database.branch.findUnique({
+          where: {
+            repositoryId_name: {
+              repositoryId: pullRequest.repositoryId,
+              name: pullRequest.sourceBranch.name,
+            },
+          },
+          include: { headCommit: { select: { sha: true } } },
+        }),
+        this.database.branch.findUnique({
+          where: {
+            repositoryId_name: {
+              repositoryId: pullRequest.repositoryId,
+              name: pullRequest.targetBranch.name,
+            },
+          },
+          include: { headCommit: { select: { sha: true } } },
+        }),
+      ]);
+      if (
+        sourceBranch?.headCommit?.sha !== pullRequest.sourceHeadSha ||
+        targetBranch?.headCommit?.sha !== pullRequest.targetHeadSha
+      ) {
+        throw new DomainError(
+          "PULL_REQUEST_STALE",
+          "The pull request branches changed; refresh the comparison before merging.",
+        );
+      }
+      if (
+        pullRequest.sourceUrl === null ||
+        pullRequest.sourceCitation === null ||
+        pullRequest.sourceDocumentHash === null ||
+        pullRequest.sourceAttribution === null
+      ) {
+        throw new DomainError(
+          "PROVENANCE_REQUIRED",
+          "A pull request merge requires a source citation.",
+        );
+      }
+
+      let mergeCommit: CommitResult;
+      try {
+        mergeCommit = await this.mergeBranch({
+          repositoryId: pullRequest.repositoryId,
+          targetBranchName: pullRequest.targetBranch.name,
+          sourceBranchName: pullRequest.sourceBranch.name,
+          actor,
+          expectedTargetHeadSha: pullRequest.targetHeadSha,
+          message: `Merge pull request: ${pullRequest.title}`,
+          provenance: {
+            kind: "student-argument",
+            url: pullRequest.sourceUrl,
+            citation: pullRequest.sourceCitation,
+            documentHash: pullRequest.sourceDocumentHash,
+            attribution: pullRequest.sourceAttribution,
+            isPublicRecord: true,
+          },
+        });
+      } catch (error) {
+        if (error instanceof DomainError && error.code === "MERGE_CONFLICT") {
+          await this.database.$transaction(async (transaction) => {
+            await transaction.pullRequest.update({
+              where: { id: pullRequest.id },
+              data: { hasConflicts: true },
+            });
+            await transaction.auditEvent.create({
+              data: {
+                repositoryId: pullRequest.repositoryId,
+                actorId: actorRecord.id,
+                eventType: "pull_request.conflict",
+                entityType: "pull_request",
+                entityId: pullRequest.id,
+                details: JSON.stringify({
+                  sourceBranch: pullRequest.sourceBranch.name,
+                  targetBranch: pullRequest.targetBranch.name,
+                  reason: "merge conflict during review",
+                }),
+              },
+            });
+          });
+        }
+        throw error;
+      }
+
+      await this.database.$transaction(async (transaction) => {
+        await transaction.pullRequest.update({
+          where: { id: pullRequest.id },
+          data: {
+            status: "merged",
+            mergeCommitId: mergeCommit.id,
+            mergedAt: new Date(),
+          },
+        });
+        await transaction.auditEvent.create({
+          data: {
+            repositoryId: pullRequest.repositoryId,
+            actorId: actorRecord.id,
+            eventType: "pull_request.merged",
+            entityType: "pull_request",
+            entityId: pullRequest.id,
+            details: JSON.stringify({
+              mergeSha: mergeCommit.sha,
+              reviewer: actorRecord.id,
+            }),
+          },
+        });
+      });
+
+      return {
+        pullRequest: await this.getPullRequest(pullRequest.id),
+        mergeCommit,
+      };
+    });
+  }
+
+  async getBlameDetails(
+    repositoryId: string,
+    ref: string,
+    filepath: string,
+  ): Promise<BlameSummaryLine[]> {
+    return this.execute(async () => {
+      const lines = await this.blame(repositoryId, ref, filepath);
+      const commits = await this.database.docketCommit.findMany({
+        where: {
+          repositoryId,
+          sha: { in: [...new Set(lines.map((line) => line.commit.sha))] },
+        },
+        include: { sourceRecords: true },
+      });
+      const commitBySha = new Map(
+        commits.map((commit) => [commit.sha, this.toCommitSummary(commit)]),
+      );
+
+      return lines.map((line) => {
+        const commit = commitBySha.get(line.commit.sha);
+        if (commit === undefined) {
+          throw new DomainError(
+            "COMMIT_METADATA_MISSING",
+            `Git commit ${line.commit.sha} has no Git Court metadata.`,
+          );
+        }
+        return {
+          lineNumber: line.lineNumber,
+          text: line.text,
+          commit,
+        };
+      });
+    });
+  }
+
+  async listAuditEvents(repositoryId: string): Promise<AuditEventSummary[]> {
+    return this.execute(async () => {
+      await this.requireRepository(repositoryId);
+      const events = await this.database.auditEvent.findMany({
+        where: { repositoryId },
+        include: { actor: { select: { displayName: true } } },
+        orderBy: { createdAt: "desc" },
+      });
+
+      return events.map((event) => ({
+        id: event.id,
+        eventType: event.eventType,
+        entityType: event.entityType,
+        entityId: event.entityId,
+        details: this.parseAuditDetails(event.details),
+        actorName: event.actor?.displayName ?? null,
+        createdAt: event.createdAt,
+      }));
+    });
+  }
+
   async mergeBranch(input: MergeBranchInput): Promise<CommitResult> {
     return this.execute(async () => {
       const repository = await this.database.caseRepository.findUnique({
@@ -658,6 +1121,7 @@ export class CaseRepositoryService {
           "Only a reviewer or administrator can merge branches.",
         );
       }
+      assertPublicRecordProvenance(input.provenance);
 
       const [targetBranch, sourceBranch] = await Promise.all([
         this.database.branch.findUnique({
@@ -1074,6 +1538,80 @@ export class CaseRepositoryService {
     return branch.headCommit?.sha ?? null;
   }
 
+  private async findPullRequest(
+    pullRequestId: string,
+  ): Promise<PullRequestWithRelations> {
+    const pullRequest = await this.database.pullRequest.findUnique({
+      where: { id: pullRequestId },
+      include: {
+        sourceBranch: true,
+        targetBranch: true,
+        author: true,
+        reviewer: true,
+        reviews: {
+          include: { reviewer: true },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    });
+
+    if (pullRequest === null) {
+      throw new DomainError(
+        "PULL_REQUEST_NOT_FOUND",
+        "The requested pull request does not exist.",
+      );
+    }
+
+    return pullRequest;
+  }
+
+  private toPullRequestSummary(
+    pullRequest: PullRequestWithRelations,
+    diff: FileDiff[],
+  ): PullRequestSummary {
+    return {
+      id: pullRequest.id,
+      repositoryId: pullRequest.repositoryId,
+      sourceBranchName: pullRequest.sourceBranch.name,
+      targetBranchName: pullRequest.targetBranch.name,
+      sourceHeadSha: pullRequest.sourceHeadSha,
+      targetHeadSha: pullRequest.targetHeadSha,
+      title: pullRequest.title,
+      description: pullRequest.description,
+      status: pullRequest.status,
+      hasConflicts: pullRequest.hasConflicts,
+      authorName: pullRequest.author.displayName,
+      reviewerName: pullRequest.reviewer?.displayName ?? null,
+      createdAt: pullRequest.createdAt,
+      updatedAt: pullRequest.updatedAt,
+      mergedAt: pullRequest.mergedAt,
+      sourceUrl: pullRequest.sourceUrl,
+      sourceCitation: pullRequest.sourceCitation,
+      sourceAttribution: pullRequest.sourceAttribution,
+      reviews: pullRequest.reviews.map((review) => ({
+        id: review.id,
+        reviewerName: review.reviewer.displayName,
+        decision: review.decision,
+        comment: review.comment,
+        createdAt: review.createdAt,
+      })),
+      diff,
+    };
+  }
+
+  private parseAuditDetails(details: string): Record<string, unknown> {
+    try {
+      const parsed = JSON.parse(details) as unknown;
+      if (typeof parsed === "object" && parsed !== null) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Preserve malformed legacy details as a visible value.
+    }
+
+    return { raw: details };
+  }
+
   private async requireRepository(repositoryId: string) {
     const repository = await this.database.caseRepository.findUnique({
       where: { id: repositoryId },
@@ -1178,12 +1716,18 @@ export class CaseRepositoryService {
     documentPath: string | null;
     sourceReference: string | null;
     sourceUrl: string | null;
+    sourceRecords?: Array<{
+      citation: string | null;
+      documentHash: string;
+    }>;
     attribution: string;
     publishedAt: Date;
     createdAt: Date;
   }): CommitSummary {
     return {
       ...commit,
+      sourceCitation: commit.sourceRecords?.[0]?.citation ?? null,
+      sourceDocumentHash: commit.sourceRecords?.[0]?.documentHash ?? null,
       parentShas: parseParentShas(commit.parentShas, commit.parentSha),
       docketLabel: `${commit.entryType}: ${commit.title}`,
     };

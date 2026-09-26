@@ -6,6 +6,7 @@ import { DomainError } from "@/lib/domain/errors";
 import {
   assertCanAppendCommit,
   assertCanMergePullRequest,
+  assertCanReviewPullRequest,
   assertCanWriteRepository,
   assertCommitHashMatches,
   assertForkIsolation,
@@ -136,6 +137,21 @@ test("only the assigned reviewer or administrator can merge", () => {
   );
   expectDomainError("MERGE_CONFLICT", () =>
     assertCanMergePullRequest({ ...pullRequest, hasConflicts: true }, reviewer),
+  );
+});
+
+test("only reviewers can review an open pull request", () => {
+  const pullRequest = {
+    status: "open",
+    reviewerId: reviewer.id,
+  };
+
+  assert.doesNotThrow(() => assertCanReviewPullRequest(pullRequest, reviewer));
+  expectDomainError("REVIEW_FORBIDDEN", () =>
+    assertCanReviewPullRequest(pullRequest, student),
+  );
+  expectDomainError("PULL_REQUEST_NOT_OPEN", () =>
+    assertCanReviewPullRequest({ ...pullRequest, status: "merged" }, reviewer),
   );
 });
 

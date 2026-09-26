@@ -509,6 +509,56 @@ export class IsomorphicGitRepositoryAdapter implements RepositoryAdapter {
     });
   }
 
+  async previewMergeBranches(input: {
+    repositoryId: string;
+    targetBranchName: string;
+    sourceBranchName: string;
+  }): Promise<{ hasConflicts: boolean }> {
+    assertBranchName(input.targetBranchName);
+    assertBranchName(input.sourceBranchName);
+
+    return this.lock.run(this.lockKey(input.repositoryId), async () => {
+      const repositoryPath = await this.requireRepository(input.repositoryId);
+
+      try {
+        await git.checkout({
+          fs,
+          dir: repositoryPath,
+          ref: input.targetBranchName,
+          force: true,
+        });
+        await git.merge({
+          fs,
+          dir: repositoryPath,
+          ours: input.targetBranchName,
+          theirs: input.sourceBranchName,
+          fastForward: false,
+          dryRun: true,
+          abortOnConflict: true,
+          message: "Git Court merge preview",
+          author: {
+            name: "Git Court merge preview",
+            email: "merge-preview@gitcourt.local",
+          },
+          committer: {
+            name: "Git Court merge preview",
+            email: "merge-preview@gitcourt.local",
+          },
+        });
+        return { hasConflicts: false };
+      } catch (error) {
+        if (
+          errorName(error) === "MergeConflictError" ||
+          errorName(error) === "MergeNotSupportedError"
+        ) {
+          return { hasConflicts: true };
+        }
+
+        throw this.toGitError(error, "Unable to preview the Git merge.");
+      }
+    });
+  }
+
   async blame(
     repositoryId: string,
     ref: string,

@@ -258,6 +258,155 @@ test("Git Court service keeps Prisma metadata and Git history synchronized", asy
       merged.sha,
     );
 
+    const forkPullRequest = await service.createPullRequest({
+      repositoryId: fork.id,
+      sourceBranchName: forkBranch.name,
+      targetBranchName: "main",
+      actor: student,
+      reviewer,
+      title: "Review alternate standing argument",
+      description:
+        "Ask a reviewer to evaluate the forked argument before it is merged.",
+      provenance,
+    });
+    assert.equal(forkPullRequest.status, "open");
+    assert.equal(forkPullRequest.hasConflicts, false);
+    assert.equal(forkPullRequest.diff.length, 1);
+    assert.ok(
+      forkPullRequest.diff[0].lines.some((line) => line.type === "addition"),
+    );
+
+    await expectDomainError("REVIEW_REQUIRED", () =>
+      service.mergePullRequest({
+        pullRequestId: forkPullRequest.id,
+        actor: reviewer,
+      }),
+    );
+    const reviewedPullRequest = await service.reviewPullRequest({
+      pullRequestId: forkPullRequest.id,
+      actor: reviewer,
+      decision: "approve",
+      comment: "The public source is clearly cited.",
+    });
+    assert.equal(reviewedPullRequest.reviews[0].decision, "approve");
+
+    const mergedPullRequest = await service.mergePullRequest({
+      pullRequestId: forkPullRequest.id,
+      actor: reviewer,
+    });
+    assert.equal(mergedPullRequest.pullRequest.status, "merged");
+    assert.equal(
+      mergedPullRequest.pullRequest.reviews[0].reviewerName,
+      reviewer.displayName,
+    );
+    assert.equal(
+      await adapter.getBranchHead(fork.id, "main"),
+      mergedPullRequest.mergeCommit.sha,
+    );
+    const blamedArgument = await service.getBlameDetails(
+      fork.id,
+      "main",
+      forkArgument.documentPath,
+    );
+    assert.ok(
+      blamedArgument.some((line) => line.commit.sha === forkArgument.sha),
+    );
+    const forkAudit = await service.listAuditEvents(fork.id);
+    assert.ok(
+      forkAudit.some((event) => event.eventType === "pull_request.created"),
+    );
+    assert.ok(
+      forkAudit.some((event) => event.eventType === "pull_request.reviewed"),
+    );
+    assert.ok(
+      forkAudit.some((event) => event.eventType === "pull_request.merged"),
+    );
+
+    const conflictPullRequest = await service.createPullRequest({
+      repositoryId: repository.id,
+      sourceBranchName: "competing-standing",
+      targetBranchName: "alternate-standing",
+      actor: student,
+      reviewer,
+      title: "Compare competing standing theory",
+      description: "This comparison intentionally changes the same document.",
+      provenance,
+    });
+    assert.equal(conflictPullRequest.hasConflicts, true);
+    const conflictAudit = await service.listAuditEvents(repository.id);
+    assert.ok(
+      conflictAudit.some(
+        (event) => event.eventType === "pull_request.conflict",
+      ),
+    );
+    await expectDomainError("MERGE_CONFLICT", () =>
+      service
+        .reviewPullRequest({
+          pullRequestId: conflictPullRequest.id,
+          actor: reviewer,
+          decision: "approve",
+        })
+        .then(() =>
+          service.mergePullRequest({
+            pullRequestId: conflictPullRequest.id,
+            actor: reviewer,
+          }),
+        ),
+    );
+
+    const staleBranch = await service.createBranch({
+      repositoryId: repository.id,
+      name: "stale-review-branch",
+      actor: student,
+      fromSha: initial.sha,
+    });
+    const staleArgument = await service.appendCommit({
+      repositoryId: repository.id,
+      branchName: staleBranch.name,
+      actor: student,
+      parentSha: initial.sha,
+      entryType: "student-argument",
+      title: "Stale review theory",
+      content: "This theory is intentionally made stale before merge.",
+      documentPath: "arguments/stale-review.md",
+      provenance,
+    });
+    const stalePullRequest = await service.createPullRequest({
+      repositoryId: repository.id,
+      sourceBranchName: staleBranch.name,
+      targetBranchName: "main",
+      actor: student,
+      reviewer,
+      title: "Stale review example",
+      description: "The target branch will move after this review opens.",
+      provenance,
+    });
+    const currentMainHead = await adapter.getBranchHead(repository.id, "main");
+    assert.equal(currentMainHead, merged.sha);
+    await service.appendCommit({
+      repositoryId: repository.id,
+      branchName: "main",
+      actor: student,
+      parentSha: currentMainHead,
+      entryType: "annotation",
+      title: "Target branch moved",
+      content: "A later public-record annotation changed the target head.",
+      documentPath: "arguments/target-note.md",
+      provenance,
+    });
+    await service.reviewPullRequest({
+      pullRequestId: stalePullRequest.id,
+      actor: reviewer,
+      decision: "approve",
+    });
+    await expectDomainError("PULL_REQUEST_STALE", () =>
+      service.mergePullRequest({
+        pullRequestId: stalePullRequest.id,
+        actor: reviewer,
+      }),
+    );
+    assert.equal(staleArgument.parentSha, initial.sha);
+
     const firstImport = await service.importPublicCase(demoCase);
     const secondImport = await service.importPublicCase(demoCase);
     assert.equal(firstImport.entriesImported, demoCase.entries.length);

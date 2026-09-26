@@ -24,6 +24,10 @@ export type GitMergeResult = {
   alreadyMerged: boolean;
 };
 
+export type GitMergePreview = {
+  hasConflicts: boolean;
+};
+
 export interface RepositoryAdapter {
   initialize(repositoryId: string, defaultBranch: string): Promise<void>;
   remove(repositoryId: string): Promise<void>;
@@ -70,6 +74,11 @@ export interface RepositoryAdapter {
     message: string;
     expectedTargetHeadSha: string;
   }): Promise<GitMergeResult>;
+  previewMergeBranches(input: {
+    repositoryId: string;
+    targetBranchName: string;
+    sourceBranchName: string;
+  }): Promise<GitMergePreview>;
   blame(
     repositoryId: string,
     ref: string,

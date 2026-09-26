@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { Actor } from "@/lib/domain/types";
+import type { Actor, ActorRole } from "@/lib/domain/types";
 
 export const demoIdentityInputSchema = z.object({
   displayName: z.string().trim().min(2).max(80),
@@ -9,13 +9,16 @@ export const demoIdentityInputSchema = z.object({
 
 export type DemoIdentityInput = z.infer<typeof demoIdentityInputSchema>;
 
-export function createDemoActor(input: DemoIdentityInput): Actor {
+export function createDemoActor(
+  input: DemoIdentityInput,
+  role: ActorRole = "student",
+): Actor {
   const email = input.email.trim().toLowerCase();
 
   return {
     id: `demo-${email.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`,
     displayName: input.displayName.trim(),
     email,
-    role: "student",
+    role,
   };
 }

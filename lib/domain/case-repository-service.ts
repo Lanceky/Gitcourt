@@ -2,6 +2,13 @@ import { createHash, randomUUID } from "node:crypto";
 
 import type { Prisma, PrismaClient } from "@prisma/client";
 
+import { lintCitation } from "@/lib/ai/citation-lint";
+import {
+  generateSummary,
+  type SummaryGenerationInput,
+  type SummaryGenerationResult,
+  type SummaryProvider,
+} from "@/lib/ai/summary-service";
 import { DomainError } from "@/lib/domain/errors";
 import {
   assertCanAppendCommit,
@@ -166,6 +173,52 @@ function parseParentShas(
   return parentSha === null ? [] : [parentSha];
 }
 
+function parseJsonStringArray(value: string | null): string[] {
+  if (value === null) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseCitationWarnings(
+  value: string | null,
+): Array<{ code: string; message: string }> {
+  if (value === null) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.flatMap((item) => {
+      if (
+        typeof item !== "object" ||
+        item === null ||
+        !("code" in item) ||
+        !("message" in item) ||
+        typeof item.code !== "string" ||
+        typeof item.message !== "string"
+      ) {
+        return [];
+      }
+      return [{ code: item.code, message: item.message }];
+    });
+  } catch {
+    return [];
+  }
+}
+
 function repositoryPolicy(
   repository: Pick<
     RepositoryPolicyRecord,
@@ -179,6 +232,7 @@ export class CaseRepositoryService {
   constructor(
     private readonly database: PrismaClient,
     private readonly git: RepositoryAdapter = new IsomorphicGitRepositoryAdapter(),
+    private readonly summaryProvider?: SummaryProvider | null,
   ) {}
 
   async createRepository(
@@ -453,8 +507,16 @@ export class CaseRepositoryService {
                 sourceUrl: sourceCommit.sourceUrl,
                 attribution: sourceCommit.attribution,
                 aiSummary: sourceCommit.aiSummary,
+                aiKeyIssue: sourceCommit.aiKeyIssue,
+                aiOutcome: sourceCommit.aiOutcome,
+                aiSourceReferences: sourceCommit.aiSourceReferences,
+                aiSourceCommitSha: sourceCommit.aiSourceCommitSha,
                 aiModel: sourceCommit.aiModel,
                 aiPromptVersion: sourceCommit.aiPromptVersion,
+                aiStatus: sourceCommit.aiStatus,
+                aiCitationWarnings: sourceCommit.aiCitationWarnings,
+                aiError: sourceCommit.aiError,
+                aiGeneratedAt: sourceCommit.aiGeneratedAt,
                 publishedAt: sourceCommit.publishedAt,
                 createdAt: sourceCommit.createdAt,
               },
@@ -642,6 +704,109 @@ export class CaseRepositoryService {
     return this.execute(async () => {
       await this.requireRepository(repositoryId);
       return this.git.getDiff(repositoryId, fromRef, toRef);
+    });
+  }
+
+  async getCommitSummary(
+    repositoryId: string,
+    sha: string,
+  ): Promise<CommitSummary> {
+    return this.execute(async () => {
+      await this.requireRepository(repositoryId);
+      const commit = await this.database.docketCommit.findUnique({
+        where: {
+          repositoryId_sha: {
+            repositoryId,
+            sha,
+          },
+        },
+        include: { sourceRecords: true },
+      });
+      if (commit === null) {
+        throw new DomainError(
+          "COMMIT_NOT_FOUND",
+          "The requested commit does not exist.",
+        );
+      }
+
+      return this.toCommitSummary(commit);
+    });
+  }
+
+  async generateCommitSummary(
+    repositoryId: string,
+    sha: string,
+  ): Promise<CommitSummary> {
+    return this.execute(async () => {
+      await this.requireRepository(repositoryId);
+      const commit = await this.database.docketCommit.findUnique({
+        where: {
+          repositoryId_sha: {
+            repositoryId,
+            sha,
+          },
+        },
+        include: { sourceRecords: true },
+      });
+      if (commit === null) {
+        throw new DomainError(
+          "COMMIT_NOT_FOUND",
+          "The requested commit does not exist.",
+        );
+      }
+
+      const sourceRecord = commit.sourceRecords[0];
+      const sourceUrl = sourceRecord?.url ?? commit.sourceUrl;
+      const citation = sourceRecord?.citation;
+      if (sourceUrl === null || citation === null) {
+        throw new DomainError(
+          "PROVENANCE_REQUIRED",
+          "An AI summary requires a public source URL and citation.",
+        );
+      }
+
+      const result = await this.generateSummaryForCommit({
+        sourceCommitSha: commit.sha,
+        title: commit.title,
+        entryType: commit.entryType,
+        publishedAt: commit.publishedAt,
+        sourceText: commit.content,
+        manualSummary: commit.aiSummary ?? undefined,
+        sourceUrl,
+        citation,
+      });
+      const updated = await this.database.$transaction(async (transaction) => {
+        const saved = await transaction.docketCommit.update({
+          where: { id: commit.id },
+          data: this.aiSummaryData(result, commit.sha),
+          include: { sourceRecords: true },
+        });
+        await transaction.auditEvent.create({
+          data: {
+            repositoryId,
+            actorId: commit.authorId,
+            eventType:
+              result.status === "generated"
+                ? "ai.summary.generated"
+                : result.status === "rejected"
+                  ? "ai.summary.rejected"
+                  : "ai.summary.fallback",
+            entityType: "docket_commit",
+            entityId: commit.id,
+            details: JSON.stringify({
+              status: result.status,
+              model: result.model,
+              promptVersion: result.promptVersion,
+              sourceCommitSha: commit.sha,
+              citationIssues: result.citationIssues,
+              error: result.error,
+            }),
+          },
+        });
+        return saved;
+      });
+
+      return this.toCommitSummary(updated);
     });
   }
 
@@ -869,6 +1034,30 @@ export class CaseRepositoryService {
         },
         { ...input.actor, id: actorRecord.id },
       );
+      const sourceUrl = pullRequest.sourceUrl;
+      const sourceCitation = pullRequest.sourceCitation;
+      if (input.decision === "approve") {
+        if (sourceUrl === null || sourceCitation === null) {
+          throw new DomainError(
+            "CITATION_CHECK_FAILED",
+            "An approving review requires a complete public citation.",
+          );
+        }
+        const citationCheck = lintCitation({
+          citation: sourceCitation,
+          sourceUrl,
+          sourceReferences: [sourceUrl],
+          requireSourceReference: true,
+        });
+        if (!citationCheck.valid) {
+          throw new DomainError(
+            "CITATION_CHECK_FAILED",
+            `Citation formatting assistance found issues: ${citationCheck.issues
+              .map((issue) => issue.message)
+              .join(" ")}`,
+          );
+        }
+      }
 
       await this.database.$transaction(async (transaction) => {
         await transaction.review.create({
@@ -1448,6 +1637,16 @@ export class CaseRepositoryService {
             },
             expectedParentSha: previousHeadSha,
           });
+          const summaryResult = await this.generateSummaryForCommit({
+            sourceCommitSha: gitCommit.sha,
+            title: input.title,
+            entryType: input.entryType,
+            publishedAt: input.publishedAt ?? new Date(),
+            sourceText: input.content,
+            manualSummary: input.summary,
+            sourceUrl: input.provenance.url,
+            citation: input.provenance.citation,
+          });
 
           const commit = await transaction.docketCommit.create({
             data: {
@@ -1464,7 +1663,7 @@ export class CaseRepositoryService {
               sourceReference: input.provenance.url,
               sourceUrl: input.provenance.url,
               attribution: input.provenance.attribution,
-              aiSummary: input.summary,
+              ...this.aiSummaryData(summaryResult, gitCommit.sha),
               publishedAt: input.publishedAt ?? new Date(),
             },
           });
@@ -1495,6 +1694,28 @@ export class CaseRepositoryService {
                 branch: input.branchName,
                 filepath: safeDocumentPath,
                 sha: commit.sha,
+              }),
+            },
+          });
+          await transaction.auditEvent.create({
+            data: {
+              repositoryId: input.repositoryId,
+              actorId: actor.id,
+              eventType:
+                summaryResult.status === "generated"
+                  ? "ai.summary.generated"
+                  : summaryResult.status === "rejected"
+                    ? "ai.summary.rejected"
+                    : "ai.summary.fallback",
+              entityType: "docket_commit",
+              entityId: commit.id,
+              details: JSON.stringify({
+                status: summaryResult.status,
+                model: summaryResult.model,
+                promptVersion: summaryResult.promptVersion,
+                sourceCommitSha: gitCommit.sha,
+                citationIssues: summaryResult.citationIssues,
+                error: summaryResult.error,
               }),
             },
           });
@@ -1569,6 +1790,24 @@ export class CaseRepositoryService {
     pullRequest: PullRequestWithRelations,
     diff: FileDiff[],
   ): PullRequestSummary {
+    const citationCheck =
+      pullRequest.sourceUrl !== null && pullRequest.sourceCitation !== null
+        ? lintCitation({
+            citation: pullRequest.sourceCitation,
+            sourceUrl: pullRequest.sourceUrl,
+            sourceReferences: [pullRequest.sourceUrl],
+            requireSourceReference: true,
+          })
+        : {
+            valid: false,
+            issues: [
+              {
+                code: "MISSING_PROVENANCE",
+                message: "This pull request has no complete public citation.",
+              },
+            ],
+          };
+
     return {
       id: pullRequest.id,
       repositoryId: pullRequest.repositoryId,
@@ -1588,6 +1827,7 @@ export class CaseRepositoryService {
       sourceUrl: pullRequest.sourceUrl,
       sourceCitation: pullRequest.sourceCitation,
       sourceAttribution: pullRequest.sourceAttribution,
+      citationCheck,
       reviews: pullRequest.reviews.map((review) => ({
         id: review.id,
         reviewerName: review.reviewer.displayName,
@@ -1610,6 +1850,43 @@ export class CaseRepositoryService {
     }
 
     return { raw: details };
+  }
+
+  private async generateSummaryForCommit(
+    input: SummaryGenerationInput,
+  ): Promise<SummaryGenerationResult> {
+    return generateSummary(input, this.summaryProvider);
+  }
+
+  private aiSummaryData(
+    result: SummaryGenerationResult,
+    sourceCommitSha: string,
+  ): {
+    aiSummary: string;
+    aiKeyIssue: string;
+    aiOutcome: string;
+    aiSourceReferences: string;
+    aiSourceCommitSha: string;
+    aiModel: string;
+    aiPromptVersion: string;
+    aiStatus: string;
+    aiCitationWarnings: string;
+    aiError: string | null;
+    aiGeneratedAt: Date;
+  } {
+    return {
+      aiSummary: result.summary,
+      aiKeyIssue: result.keyIssue,
+      aiOutcome: result.outcome,
+      aiSourceReferences: JSON.stringify(result.sourceReferences),
+      aiSourceCommitSha: sourceCommitSha,
+      aiModel: result.model,
+      aiPromptVersion: result.promptVersion,
+      aiStatus: result.status,
+      aiCitationWarnings: JSON.stringify(result.citationIssues),
+      aiError: result.error,
+      aiGeneratedAt: result.generatedAt,
+    };
   }
 
   private async requireRepository(repositoryId: string) {
@@ -1721,15 +1998,49 @@ export class CaseRepositoryService {
       documentHash: string;
     }>;
     attribution: string;
+    aiSummary: string | null;
+    aiKeyIssue: string | null;
+    aiOutcome: string | null;
+    aiSourceReferences: string | null;
+    aiSourceCommitSha: string | null;
+    aiModel: string | null;
+    aiPromptVersion: string | null;
+    aiStatus: string | null;
+    aiCitationWarnings: string | null;
+    aiError: string | null;
+    aiGeneratedAt: Date | null;
     publishedAt: Date;
     createdAt: Date;
   }): CommitSummary {
     return {
-      ...commit,
+      id: commit.id,
+      sha: commit.sha,
+      parentSha: commit.parentSha,
+      authorName: commit.authorName,
+      entryType: commit.entryType,
+      title: commit.title,
+      content: commit.content,
+      documentPath: commit.documentPath,
+      sourceReference: commit.sourceReference,
+      sourceUrl: commit.sourceUrl,
       sourceCitation: commit.sourceRecords?.[0]?.citation ?? null,
       sourceDocumentHash: commit.sourceRecords?.[0]?.documentHash ?? null,
       parentShas: parseParentShas(commit.parentShas, commit.parentSha),
+      attribution: commit.attribution,
+      publishedAt: commit.publishedAt,
+      createdAt: commit.createdAt,
       docketLabel: `${commit.entryType}: ${commit.title}`,
+      aiSummary: commit.aiSummary,
+      aiKeyIssue: commit.aiKeyIssue,
+      aiOutcome: commit.aiOutcome,
+      aiSourceReferences: parseJsonStringArray(commit.aiSourceReferences),
+      aiSourceCommitSha: commit.aiSourceCommitSha,
+      aiModel: commit.aiModel,
+      aiPromptVersion: commit.aiPromptVersion,
+      aiStatus: commit.aiStatus,
+      aiCitationWarnings: parseCitationWarnings(commit.aiCitationWarnings),
+      aiError: commit.aiError,
+      aiGeneratedAt: commit.aiGeneratedAt,
     };
   }
 

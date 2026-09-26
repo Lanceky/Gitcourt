@@ -10,9 +10,27 @@ type Branch = {
   isReadOnly: boolean;
 };
 
+type ExplorerEntry = DemoDocketEntry & {
+  persistedSha: string | null;
+  aiSummary: string | null;
+  aiKeyIssue: string | null;
+  aiOutcome: string | null;
+  aiSourceReferences: string[];
+  aiSourceCommitSha: string | null;
+  aiModel: string | null;
+  aiPromptVersion: string | null;
+  aiStatus: string | null;
+  aiCitationWarnings: Array<{
+    code: string;
+    message: string;
+  }>;
+  aiError: string | null;
+  aiGeneratedAt: string | null;
+};
+
 type CaseRepositoryExplorerProps = {
   branches: Branch[];
-  entries: DemoDocketEntry[];
+  entries: ExplorerEntry[];
 };
 
 function formatEntryType(entryType: string): string {
@@ -29,6 +47,19 @@ function formatDate(date: string): string {
     year: "numeric",
     timeZone: "UTC",
   }).format(new Date(`${date}T00:00:00.000Z`));
+}
+
+function summaryStatusLabel(status: string | null): string {
+  switch (status) {
+    case "generated":
+      return "AI-generated — verify against source";
+    case "rejected":
+      return "Manual fallback — AI output rejected";
+    case "manual-fallback":
+      return "Manual fallback — AI optional";
+    default:
+      return "Manual summary";
+  }
 }
 
 export default function CaseRepositoryExplorer({
@@ -287,11 +318,105 @@ export default function CaseRepositoryExplorer({
             <section className="document-section summary-section">
               <div className="section-heading">
                 <div>
-                  <h4>Generated summary</h4>
-                  <p>Plain-language orientation, not legal advice.</p>
+                  <h4>
+                    {selectedEntry.aiStatus === "generated"
+                      ? "Generated summary"
+                      : "Curated manual summary"}
+                  </h4>
+                  <p>
+                    {selectedEntry.aiStatus === "generated"
+                      ? "AI-generated — verify against the original source; not legal advice."
+                      : "Plain-language orientation, not legal advice."}
+                  </p>
                 </div>
+                <span className="document-badge">
+                  {summaryStatusLabel(selectedEntry.aiStatus)}
+                </span>
               </div>
-              <p>{selectedEntry.summary}</p>
+              <p>{selectedEntry.aiSummary ?? selectedEntry.summary}</p>
+              {selectedEntry.aiKeyIssue !== null ||
+              selectedEntry.aiOutcome !== null ? (
+                <dl className="ai-summary-facts">
+                  <div>
+                    <dt>Key issue</dt>
+                    <dd>{selectedEntry.aiKeyIssue ?? "Not recorded"}</dd>
+                  </div>
+                  <div>
+                    <dt>Outcome</dt>
+                    <dd>{selectedEntry.aiOutcome ?? "Not recorded"}</dd>
+                  </div>
+                </dl>
+              ) : null}
+              {selectedEntry.aiSourceReferences.length > 0 ? (
+                <div className="ai-source-references">
+                  <span className="metadata-label">Source references</span>
+                  {selectedEntry.aiSourceReferences.map((reference) => (
+                    <a
+                      href={reference}
+                      key={reference}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      {reference}
+                    </a>
+                  ))}
+                </div>
+              ) : null}
+              {selectedEntry.aiCitationWarnings.length > 0 ? (
+                <div className="citation-callout" role="alert">
+                  <strong>Citation formatting warnings</strong>
+                  <ul>
+                    {selectedEntry.aiCitationWarnings.map((issue) => (
+                      <li key={`${issue.code}-${issue.message}`}>
+                        {issue.message}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {selectedEntry.aiModel !== null ||
+              selectedEntry.aiPromptVersion !== null ||
+              selectedEntry.aiGeneratedAt !== null ? (
+                <dl className="ai-summary-facts">
+                  <div>
+                    <dt>Model</dt>
+                    <dd>{selectedEntry.aiModel ?? "Not recorded"}</dd>
+                  </div>
+                  <div>
+                    <dt>Prompt version</dt>
+                    <dd>{selectedEntry.aiPromptVersion ?? "Not recorded"}</dd>
+                  </div>
+                  <div>
+                    <dt>Source commit</dt>
+                    <dd>
+                      <code>
+                        {(
+                          selectedEntry.aiSourceCommitSha ??
+                          selectedEntry.persistedSha ??
+                          selectedEntry.sha
+                        ).slice(0, 7)}
+                      </code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Generated</dt>
+                    <dd>
+                      {selectedEntry.aiGeneratedAt === null
+                        ? "Not recorded"
+                        : new Intl.DateTimeFormat("en", {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                            timeZone: "UTC",
+                          }).format(new Date(selectedEntry.aiGeneratedAt))}
+                    </dd>
+                  </div>
+                </dl>
+              ) : null}
+              {selectedEntry.aiError !== null ? (
+                <p className="field-help">
+                  Provider note: {selectedEntry.aiError}
+                </p>
+              ) : null}
             </section>
 
             <section className="document-section source-section">

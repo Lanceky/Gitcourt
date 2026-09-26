@@ -49,30 +49,38 @@ model CaseRepository {
 }
 
 model DocketCommit {
-  id                String         @id @default(cuid())
-  repositoryId      String
-  sha               String
-  parentSha         String?
-  authorId          String?
-  authorName        String
-  entryType         String
-  title             String
-  content           String
-  documentPath      String?
-  sourceReference   String?
-  sourceUrl         String?
-  attribution       String         @default("Public source")
-  parentShas        String?
-  aiSummary         String?
-  aiModel           String?
-  aiPromptVersion   String?
-  publishedAt       DateTime       @default(now())
-  createdAt         DateTime       @default(now())
-  repository        CaseRepository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  author            User?          @relation("CommitAuthor", fields: [authorId], references: [id], onDelete: SetNull)
-  branchHeads       Branch[]       @relation("BranchHead")
-  sourceRecords     SourceRecord[]
-  mergePullRequests PullRequest[]  @relation("PullRequestMergeCommit")
+  id                 String         @id @default(cuid())
+  repositoryId       String
+  sha                String
+  parentSha          String?
+  authorId           String?
+  authorName         String
+  entryType          String
+  title              String
+  content            String
+  documentPath       String?
+  sourceReference    String?
+  sourceUrl          String?
+  attribution        String         @default("Public source")
+  parentShas         String?
+  aiSummary          String?
+  aiKeyIssue         String?
+  aiOutcome          String?
+  aiSourceReferences String?
+  aiSourceCommitSha  String?
+  aiModel            String?
+  aiPromptVersion    String?
+  aiStatus           String         @default("manual-fallback")
+  aiCitationWarnings String?
+  aiError            String?
+  aiGeneratedAt      DateTime?
+  publishedAt        DateTime       @default(now())
+  createdAt          DateTime       @default(now())
+  repository         CaseRepository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  author             User?          @relation("CommitAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  branchHeads        Branch[]       @relation("BranchHead")
+  sourceRecords      SourceRecord[]
+  mergePullRequests  PullRequest[]  @relation("PullRequestMergeCommit")
 
   @@unique([repositoryId, sha])
   @@index([repositoryId, createdAt])

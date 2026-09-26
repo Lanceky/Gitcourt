@@ -55,6 +55,12 @@ The read-first interface is available at `/cases/carpenter-v-united-states`: it 
 
 After the argument commit, the workspace can open a pull request from the theory branch to the fork's `main` branch. The review panel renders changed files and line-level additions, deletions, and context; it records comments, requests for changes, approvals, and the resulting merge SHA. The blame and audit panels keep student authorship, public source provenance, and workflow activity visibly separate. Reviewer identities are labeled demo identities rather than authentication and must be replaced with real authentication before production use.
 
+## Guarded AI summaries
+
+AI summaries are an optional, server-side feature controlled by `AI_SUMMARY_ENABLED`. When enabled, Git Court sends only the selected public-record text and its provenance metadata to the configured OpenAI-compatible endpoint. The provider must return structured JSON containing a short summary, key issue, outcome, and source references. The application stores the model, prompt version, generation time, source commit SHA, source references, status, and any citation warnings alongside the original text.
+
+Every result is labeled **AI-generated — verify against the source** and is explicitly educational, not legal advice. If credentials are absent, the provider is unavailable, the response is malformed, or its links do not match the supplied HTTPS provenance URL, Git Court retains a manual fallback and records the reason. Citation checks flag malformed links, missing case citations, and unsupported source references as formatting assistance only; an invalid check prevents a pull request approval but does not claim to validate legal accuracy. AI generation is never required by the merge operation, and API keys remain server-side.
+
 ## Deployment target
 
 Deploy the backend API and persistence layer on **Render**. Deploy the Next.js frontend on **Vercel** and point it at the Render API. After the deployed workflow is verified, attach the supplied **`.xyz` domain** to the Vercel frontend.

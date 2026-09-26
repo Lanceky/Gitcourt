@@ -37,6 +37,24 @@ type CommitState = {
   documentPath: string;
 };
 
+type CommitSummary = {
+  sha: string;
+  aiSummary: string | null;
+  aiKeyIssue: string | null;
+  aiOutcome: string | null;
+  aiSourceReferences: string[];
+  aiSourceCommitSha: string | null;
+  aiModel: string | null;
+  aiPromptVersion: string | null;
+  aiStatus: string | null;
+  aiCitationWarnings: Array<{
+    code: string;
+    message: string;
+  }>;
+  aiError: string | null;
+  aiGeneratedAt: string | null;
+};
+
 type ApiFailure = {
   error?: string;
 };
@@ -48,6 +66,27 @@ function formatDate(date: string): string {
     year: "numeric",
     timeZone: "UTC",
   }).format(new Date(`${date}T00:00:00.000Z`));
+}
+
+function formatTimestamp(value: string): string {
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "UTC",
+  }).format(new Date(value));
+}
+
+function summaryStatusLabel(status: string | null): string {
+  switch (status) {
+    case "generated":
+      return "AI-generated — verify against source";
+    case "rejected":
+      return "Manual fallback — AI output rejected";
+    case "manual-fallback":
+      return "Manual fallback — AI optional";
+    default:
+      return "Summary pending";
+  }
 }
 
 function slugify(value: string): string {
@@ -67,6 +106,24 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
+  let payload: T | ApiFailure;
+
+  try {
+    payload = (await response.json()) as T | ApiFailure;
+  } catch {
+    throw new Error("The server returned an unreadable response.");
+  }
+
+  if (!response.ok) {
+    const failure = payload as ApiFailure;
+    throw new Error(failure.error ?? "The request could not be completed.");
+  }
+
+  return payload as T;
+}
+
+async function getJson<T>(url: string): Promise<T> {
+  const response = await fetch(url);
   let payload: T | ApiFailure;
 
   try {
@@ -120,6 +177,11 @@ export default function MootCourtWorkspace({
   );
   const [previewOpen, setPreviewOpen] = useState(false);
   const [commit, setCommit] = useState<CommitState | null>(null);
+  const [commitSummary, setCommitSummary] = useState<CommitSummary | null>(
+    null,
+  );
+  const [summaryBusy, setSummaryBusy] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<
     "fork" | "branch" | "commit" | null
   >(null);
@@ -131,6 +193,39 @@ export default function MootCourtWorkspace({
 
   function resetError(): void {
     setError(null);
+  }
+
+  async function loadCommitSummary(
+    repositoryId: string,
+    sha: string,
+    regenerate = false,
+  ): Promise<void> {
+    setSummaryBusy(true);
+    setSummaryError(null);
+
+    try {
+      const result = regenerate
+        ? await postJson<{ summary: CommitSummary }>(
+            `/api/repositories/${encodeURIComponent(
+              repositoryId,
+            )}/commits/${encodeURIComponent(sha)}/summary`,
+            {},
+          )
+        : await getJson<{ summary: CommitSummary }>(
+            `/api/repositories/${encodeURIComponent(
+              repositoryId,
+            )}/commits/${encodeURIComponent(sha)}/summary`,
+          );
+      setCommitSummary(result.summary);
+    } catch (requestError) {
+      setSummaryError(
+        requestError instanceof Error
+          ? requestError.message
+          : "The summary could not be loaded.",
+      );
+    } finally {
+      setSummaryBusy(false);
+    }
   }
 
   async function createFork(event: React.FormEvent<HTMLFormElement>) {
@@ -229,6 +324,7 @@ export default function MootCourtWorkspace({
       setBranch((current) =>
         current === null ? current : { ...current, headSha: result.commit.sha },
       );
+      void loadCommitSummary(fork.id, result.commit.sha);
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -618,6 +714,143 @@ export default function MootCourtWorkspace({
                       </div>
                     </div>
                   )}
+                  {commit !== null ? (
+                    <section
+                      aria-labelledby="ai-summary-title"
+                      className="ai-summary-card"
+                    >
+                      <div className="panel-heading">
+                        <div>
+                          <p className="eyebrow">Guarded AI feature</p>
+                          <h4 id="ai-summary-title">Commit summary</h4>
+                        </div>
+                        <span className="document-badge">
+                          {summaryStatusLabel(commitSummary?.aiStatus ?? null)}
+                        </span>
+                      </div>
+                      <p className="ai-summary-disclaimer">
+                        AI output is educational orientation only, not a legal
+                        conclusion or advice. Keep the original source open
+                        while reviewing it.
+                      </p>
+                      {summaryBusy && commitSummary === null ? (
+                        <p className="field-help">Loading summary metadata…</p>
+                      ) : null}
+                      {summaryError !== null ? (
+                        <div className="citation-callout" role="alert">
+                          {summaryError}
+                        </div>
+                      ) : null}
+                      {commitSummary !== null ? (
+                        <>
+                          <p className="ai-summary-copy">
+                            {commitSummary.aiSummary ??
+                              "No summary was returned; verify the original source."}
+                          </p>
+                          <dl className="ai-summary-facts">
+                            <div>
+                              <dt>Key issue</dt>
+                              <dd>
+                                {commitSummary.aiKeyIssue ?? "Not provided"}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Outcome</dt>
+                              <dd>
+                                {commitSummary.aiOutcome ?? "Not provided"}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Model</dt>
+                              <dd>{commitSummary.aiModel ?? "Not recorded"}</dd>
+                            </div>
+                            <div>
+                              <dt>Prompt version</dt>
+                              <dd>
+                                {commitSummary.aiPromptVersion ??
+                                  "Not recorded"}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Source commit</dt>
+                              <dd>
+                                <code>
+                                  {(
+                                    commitSummary.aiSourceCommitSha ??
+                                    commit.sha
+                                  ).slice(0, 7)}
+                                </code>
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Generated</dt>
+                              <dd>
+                                {commitSummary.aiGeneratedAt === null
+                                  ? "Not recorded"
+                                  : formatTimestamp(
+                                      commitSummary.aiGeneratedAt,
+                                    )}
+                              </dd>
+                            </div>
+                          </dl>
+                          <div className="ai-source-references">
+                            <span className="metadata-label">
+                              Source references
+                            </span>
+                            {commitSummary.aiSourceReferences.length === 0 ? (
+                              <span>None recorded</span>
+                            ) : (
+                              commitSummary.aiSourceReferences.map(
+                                (reference) => (
+                                  <a
+                                    href={reference}
+                                    key={reference}
+                                    rel="noreferrer"
+                                    target="_blank"
+                                  >
+                                    {reference}
+                                  </a>
+                                ),
+                              )
+                            )}
+                          </div>
+                          {commitSummary.aiCitationWarnings.length > 0 ? (
+                            <div className="citation-callout" role="alert">
+                              <strong>
+                                Citation formatting assistance found warnings.
+                              </strong>
+                              <ul>
+                                {commitSummary.aiCitationWarnings.map(
+                                  (issue) => (
+                                    <li key={`${issue.code}-${issue.message}`}>
+                                      {issue.message}
+                                    </li>
+                                  ),
+                                )}
+                              </ul>
+                            </div>
+                          ) : null}
+                          {commitSummary.aiError !== null ? (
+                            <p className="field-help">
+                              Provider note: {commitSummary.aiError}
+                            </p>
+                          ) : null}
+                        </>
+                      ) : null}
+                      <button
+                        className="button button-secondary"
+                        disabled={summaryBusy}
+                        onClick={() =>
+                          void loadCommitSummary(fork.id, commit.sha, true)
+                        }
+                        type="button"
+                      >
+                        {summaryBusy
+                          ? "Refreshing summary…"
+                          : "Generate / refresh summary"}
+                      </button>
+                    </section>
+                  ) : null}
                 </form>
               )}
             </>

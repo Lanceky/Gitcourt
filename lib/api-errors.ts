@@ -5,7 +5,9 @@ import { DomainError } from "@/lib/domain/errors";
 
 const domainErrorStatuses: Partial<Record<DomainError["code"], number>> = {
   BRANCH_EXISTS: 409,
+  AI_SUMMARY_NOT_FOUND: 404,
   CANONICAL_REPOSITORY_READ_ONLY: 409,
+  CITATION_CHECK_FAILED: 422,
   COMMIT_NOT_FOUND: 404,
   GIT_REPOSITORY_NOT_FOUND: 404,
   INVALID_BRANCH_NAME: 400,

@@ -29,7 +29,9 @@ export type DomainErrorCode =
   | "REVIEW_FORBIDDEN"
   | "REVIEW_REQUIRED"
   | "INVALID_REVIEW_DECISION"
-  | "AUDIT_NOT_FOUND";
+  | "AUDIT_NOT_FOUND"
+  | "AI_SUMMARY_NOT_FOUND"
+  | "CITATION_CHECK_FAILED";
 
 export class DomainError extends Error {
   constructor(

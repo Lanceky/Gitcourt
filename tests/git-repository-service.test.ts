@@ -30,7 +30,7 @@ const reviewer: Actor = {
 const provenance: CommitProvenance = {
   kind: "student-argument",
   url: "https://example.test/public-case",
-  citation: "Public case fixture",
+  citation: "Example v. Example, No. TEST-5, Public case fixture",
   documentHash: "sha256:step-five",
   attribution: "Public case fixture source",
   isPublicRecord: true,
@@ -72,7 +72,7 @@ test("Git Court service keeps Prisma metadata and Git history synchronized", asy
     );
 
     const adapter = new IsomorphicGitRepositoryAdapter(repositoryRoot);
-    const service = new CaseRepositoryService(database, adapter);
+    const service = new CaseRepositoryService(database, adapter, null);
     const repository = await service.createRepository({
       slug: "step-five-service",
       title: "Step Five Service Case",
@@ -109,6 +109,13 @@ test("Git Court service keeps Prisma metadata and Git history synchronized", asy
       )) ?? "",
       /entryType: "argument"/,
     );
+    const initialSummary = await service.getCommitSummary(
+      repository.id,
+      initial.sha,
+    );
+    assert.equal(initialSummary.aiStatus, "manual-fallback");
+    assert.equal(initialSummary.aiSourceCommitSha, initial.sha);
+    assert.equal(initialSummary.aiSummary, "Initial student theory");
 
     const feature = await service.createBranch({
       repositoryId: repository.id,
@@ -226,6 +233,12 @@ test("Git Court service keeps Prisma metadata and Git history synchronized", asy
       merged.sha,
     );
     assert.equal(await adapter.getBranchHead(fork.id, "main"), initial.sha);
+    const forkedInitialSummary = await service.getCommitSummary(
+      fork.id,
+      initial.sha,
+    );
+    assert.equal(forkedInitialSummary.aiSourceCommitSha, initial.sha);
+    assert.equal(forkedInitialSummary.aiStatus, "manual-fallback");
     assert.equal(competing.parentSha, initial.sha);
 
     const forkBranch = await service.createBranch({
@@ -320,6 +333,28 @@ test("Git Court service keeps Prisma metadata and Git history synchronized", asy
     );
     assert.ok(
       forkAudit.some((event) => event.eventType === "pull_request.merged"),
+    );
+
+    const malformedCitationPullRequest = await service.createPullRequest({
+      repositoryId: fork.id,
+      sourceBranchName: forkBranch.name,
+      targetBranchName: "main",
+      actor: student,
+      reviewer,
+      title: "Reject malformed citation",
+      description: "This pull request intentionally omits a case citation.",
+      provenance: {
+        ...provenance,
+        citation: "Public source fixture without a case citation",
+      },
+    });
+    assert.equal(malformedCitationPullRequest.citationCheck.valid, false);
+    await expectDomainError("CITATION_CHECK_FAILED", () =>
+      service.reviewPullRequest({
+        pullRequestId: malformedCitationPullRequest.id,
+        actor: reviewer,
+        decision: "approve",
+      }),
     );
 
     const conflictPullRequest = await service.createPullRequest({
@@ -439,6 +474,31 @@ test("Git Court service keeps Prisma metadata and Git history synchronized", asy
     assert.deepEqual(
       new Set(importedGitHistory.map((commit) => commit.sha)),
       new Set(importedRepository.commits.map((commit) => commit.sha)),
+    );
+
+    const generatedService = new CaseRepositoryService(database, adapter, {
+      model: "integration-model",
+      async generate() {
+        return {
+          summary: "The public record reached a judgment.",
+          keyIssue: "The case presented a constitutional question.",
+          outcome: "The Court issued a judgment on the question.",
+          sourceReferences: [demoCase.sourceUrl],
+        };
+      },
+    });
+    const generatedSummary = await generatedService.generateCommitSummary(
+      firstImport.repositoryId,
+      firstImport.headSha ?? "",
+    );
+    assert.equal(generatedSummary.aiStatus, "generated");
+    assert.equal(generatedSummary.aiModel, "integration-model");
+    assert.equal(generatedSummary.aiSourceCommitSha, generatedSummary.sha);
+    assert.equal(generatedSummary.aiCitationWarnings.length, 0);
+    assert.ok(
+      (await generatedService.listAuditEvents(firstImport.repositoryId)).some(
+        (event) => event.eventType === "ai.summary.generated",
+      ),
     );
   } finally {
     await database.$disconnect();

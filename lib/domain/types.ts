@@ -155,6 +155,20 @@ export type CommitSummary = {
   publishedAt: Date;
   createdAt: Date;
   docketLabel: string;
+  aiSummary: string | null;
+  aiKeyIssue: string | null;
+  aiOutcome: string | null;
+  aiSourceReferences: string[];
+  aiSourceCommitSha: string | null;
+  aiModel: string | null;
+  aiPromptVersion: string | null;
+  aiStatus: string | null;
+  aiCitationWarnings: Array<{
+    code: string;
+    message: string;
+  }>;
+  aiError: string | null;
+  aiGeneratedAt: Date | null;
 };
 
 export type PullRequestSummary = {
@@ -176,6 +190,10 @@ export type PullRequestSummary = {
   sourceUrl: string | null;
   sourceCitation: string | null;
   sourceAttribution: string | null;
+  citationCheck: {
+    valid: boolean;
+    issues: Array<{ code: string; message: string }>;
+  };
   reviews: Array<{
     id: string;
     reviewerName: string;

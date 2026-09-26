@@ -32,6 +32,10 @@ type PullRequest = {
   sourceUrl: string | null;
   sourceCitation: string | null;
   sourceAttribution: string | null;
+  citationCheck: {
+    valid: boolean;
+    issues: Array<{ code: string; message: string }>;
+  };
   createdAt: string;
   mergedAt: string | null;
   reviews: Array<{
@@ -447,6 +451,27 @@ export default function PullRequestWorkspace({
             </div>
           </div>
 
+          {!pullRequest.citationCheck.valid ? (
+            <div className="citation-callout" role="alert">
+              <strong>
+                Approval is paused until the citation formatting checks pass.
+              </strong>
+              <span>This is formatting assistance, not legal validation.</span>
+              <ul>
+                {pullRequest.citationCheck.issues.map((issue) => (
+                  <li key={`${issue.code}-${issue.message}`}>
+                    {issue.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="field-help">
+              Citation formatting checks passed; verify the public source
+              yourself before approving.
+            </p>
+          )}
+
           {pullRequest.status === "open" ? (
             <div className="review-actions">
               <div className="filter-field">
@@ -478,7 +503,11 @@ export default function PullRequestWorkspace({
                 </button>
                 <button
                   className="button"
-                  disabled={busyAction !== null || pullRequest.hasConflicts}
+                  disabled={
+                    busyAction !== null ||
+                    pullRequest.hasConflicts ||
+                    !pullRequest.citationCheck.valid
+                  }
                   onClick={() => void submitReview("approve")}
                   type="button"
                 >

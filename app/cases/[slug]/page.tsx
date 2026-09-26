@@ -4,10 +4,15 @@ import Link from "next/link";
 import CaseRepositoryExplorer from "@/app/cases/[slug]/case-repository-explorer";
 import MootCourtWorkspace from "@/app/cases/[slug]/moot-court-workspace";
 import { demoCase, getDemoDocketEntries } from "@/lib/demo-case";
+import { CaseRepositoryService } from "@/lib/domain/case-repository-service";
+import { db } from "@/lib/db";
+import { importPublicCase } from "@/lib/import/public-case";
 
 type CasePageProps = {
   params: Promise<{ slug: string }>;
 };
+
+export const dynamic = "force-dynamic";
 
 export default async function CasePage({ params }: CasePageProps) {
   const { slug } = await params;
@@ -16,6 +21,35 @@ export default async function CasePage({ params }: CasePageProps) {
   if (slug !== demoCase.slug) {
     notFound();
   }
+
+  const imported = await importPublicCase(db, demoCase);
+  const persistedHistory = await new CaseRepositoryService(db).getHistory(
+    imported.repositoryId,
+    "main",
+  );
+  const explorerEntries = docketEntries.map((entry) => {
+    const persisted = persistedHistory.find(
+      (commit) =>
+        commit.title === entry.title &&
+        commit.publishedAt.toISOString().startsWith(entry.date),
+    );
+
+    return {
+      ...entry,
+      persistedSha: persisted?.sha ?? null,
+      aiSummary: persisted?.aiSummary ?? null,
+      aiKeyIssue: persisted?.aiKeyIssue ?? null,
+      aiOutcome: persisted?.aiOutcome ?? null,
+      aiSourceReferences: persisted?.aiSourceReferences ?? [],
+      aiSourceCommitSha: persisted?.aiSourceCommitSha ?? null,
+      aiModel: persisted?.aiModel ?? null,
+      aiPromptVersion: persisted?.aiPromptVersion ?? null,
+      aiStatus: persisted?.aiStatus ?? null,
+      aiCitationWarnings: persisted?.aiCitationWarnings ?? [],
+      aiError: persisted?.aiError ?? null,
+      aiGeneratedAt: persisted?.aiGeneratedAt?.toISOString() ?? null,
+    };
+  });
 
   return (
     <div className="shell">
@@ -105,7 +139,7 @@ export default async function CasePage({ params }: CasePageProps) {
                   isReadOnly: true,
                 },
               ]}
-              entries={docketEntries}
+              entries={explorerEntries}
             />
           </section>
 

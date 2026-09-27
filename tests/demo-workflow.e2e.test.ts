@@ -8,6 +8,12 @@ import test from "node:test";
 import { demoCase, getDemoDocketEntries } from "@/lib/demo-case";
 
 type JsonResponse = Record<string, unknown>;
+const integrationDatabaseUrl = process.env.TEST_DATABASE_URL?.trim();
+
+function buildDatabaseUrl(baseUrl: string, schema: string): string {
+  const separator = baseUrl.includes("?") ? "&" : "?";
+  return `${baseUrl}${separator}schema=${encodeURIComponent(schema)}`;
+}
 
 function restoreEnvironment(name: string, value: string | undefined): void {
   if (value === undefined) {
@@ -39,12 +45,15 @@ async function expectJson(
 
 test(
   "route-level demo workflow completes from case page through merge",
-  { timeout: 120_000 },
+  { timeout: 120_000, skip: !integrationDatabaseUrl },
   async () => {
     const tempRoot = await mkdtemp(
       path.join(os.tmpdir(), "gitcourt-demo-workflow-"),
     );
-    const databasePath = path.join(tempRoot, "workflow.db");
+    const databaseUrl = buildDatabaseUrl(
+      integrationDatabaseUrl!,
+      `gitcourt_workflow_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`,
+    );
     const repositoryRoot = path.join(tempRoot, "repositories");
     const previousEnvironment = {
       DATABASE_URL: process.env.DATABASE_URL,
@@ -52,7 +61,7 @@ test(
       AI_SUMMARY_ENABLED: process.env.AI_SUMMARY_ENABLED,
     };
 
-    process.env.DATABASE_URL = `file:${databasePath}`;
+    process.env.DATABASE_URL = databaseUrl;
     process.env.GIT_REPOSITORIES_PATH = repositoryRoot;
     process.env.AI_SUMMARY_ENABLED = "false";
 

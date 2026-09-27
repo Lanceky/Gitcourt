@@ -14,7 +14,7 @@ function databaseFilePath(databaseUrl: string): string | null {
 
   const rawPath = databaseUrl.slice("file:".length).split("?")[0];
   if (rawPath.length === 0) {
-    throw new Error("DATABASE_URL must include a SQLite database path.");
+    throw new Error("DATABASE_URL must include a valid file database path.");
   }
 
   const decodedPath = decodeURIComponent(rawPath);
@@ -26,7 +26,10 @@ function databaseFilePath(databaseUrl: string): string | null {
 function runtimeEnvironment(): RuntimeEnvironment {
   const isProduction = process.env.NODE_ENV === "production";
   const databaseUrl =
-    process.env.DATABASE_URL ?? (isProduction ? "" : "file:./dev.db");
+    process.env.DATABASE_URL ??
+    (isProduction
+      ? ""
+      : "postgresql://postgres:postgres@localhost:5432/gitcourt");
   const repositoriesPath =
     process.env.GIT_REPOSITORIES_PATH ??
     (isProduction ? "" : path.join(process.cwd(), ".data", "repositories"));
@@ -82,7 +85,7 @@ async function main(): Promise<void> {
   const localBinary = (name: string) =>
     path.resolve(process.cwd(), "node_modules", ".bin", name);
 
-  await run(localBinary("prisma"), ["migrate", "deploy"], env);
+  await run(localBinary("prisma"), ["db", "push", "--skip-generate"], env);
   await run(localBinary("tsx"), ["prisma/seed.ts"], env);
   await run(localBinary("next"), ["start"], env);
 }

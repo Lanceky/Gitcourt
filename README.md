@@ -48,6 +48,8 @@ The hackathon MVP will not provide legal advice, ingest active or confidential m
 ```bash
 npm ci
 cp .env.example .env
+npm run db:generate
+npm run db:supabase:init
 npm run db:migrate
 npm run db:seed
 npm run dev
@@ -55,9 +57,12 @@ npm run dev
 
 Open `http://localhost:3000` after the development server starts. The migration and seed commands are safe to rerun; they preserve the single public fixture without duplicating its docket entries.
 
+`db:supabase:init` applies `supabase.db.sql`, which creates the full PostgreSQL
+schema expected by Prisma in a Supabase project.
+
 ## Current foundation
 
-The application uses Next.js, React, and TypeScript with Prisma and SQLite for local development. A filesystem-backed `isomorphic-git` adapter stores the case repositories, while the repository layer remains replaceable so PostgreSQL can replace SQLite without changing the domain workflow.
+The application uses Next.js, React, and TypeScript with Prisma on PostgreSQL (Supabase) for metadata persistence. A filesystem-backed `isomorphic-git` adapter stores the case repositories separately.
 
 The domain model covers case repositories, immutable docket commits, branches, forks, pull requests, reviews, public source records, and audit events. Server-side policies protect the canonical public case, require public provenance, isolate forks, reject stale commits and unresolved conflicts, and restrict merges to assigned reviewers or administrators.
 
@@ -87,14 +92,15 @@ npm run build
 
 The route boundary validates internal IDs, Git references, branch names, repository document paths, public HTTPS sources, and bounded text fields before domain operations run. Student writes, reviews, merges, and explicit AI refreshes have server-side in-memory rate limits for the prototype; production deployment should add an edge or service-level limiter. The UI renders source text and student arguments as escaped React text rather than injecting HTML, and all write failures remain visible to the user.
 
-## Split deployment: Render backend and Vercel frontend
+## Split deployment: Render backend + Supabase database + Vercel frontend
 
-The deployment is split into two services while keeping one repository:
+The deployment is split across services while keeping one repository:
 
-- **Render backend:** runs the Node.js Next server that owns `/api/*`, Prisma, SQLite, and the filesystem-backed Git repositories.
+- **Render backend:** runs the Node.js Next server that owns `/api/*`, Prisma, and the filesystem-backed Git repositories.
+- **Supabase:** hosts the PostgreSQL database used by Prisma.
 - **Vercel frontend:** runs the React/Next pages. Its server-rendered case page and browser workflow call the Render API through `NEXT_PUBLIC_API_BASE_URL`.
 
-`render.yaml` is a Render Blueprint for the backend. It uses a persistent disk at `/var/data`, runs migrations and the idempotent public-case seed when the service starts, and exposes `/api/health`. A persistent disk requires a paid Render instance; the `starter` plan in the Blueprint is intentional. Set `CORS_ALLOWED_ORIGINS` in Render to the exact Vercel production URL, plus any Vercel preview URLs you need, separated by commas.
+`render.yaml` is a Render Blueprint for the backend. It syncs Prisma schema with `prisma db push`, runs the idempotent public-case seed when the service starts, and exposes `/api/health`. A persistent disk still stores Git repositories at `/var/data/repositories`. Set `CORS_ALLOWED_ORIGINS` in Render to the exact Vercel production URL, plus any Vercel preview URLs you need, separated by commas.
 
 ### Render backend
 
@@ -103,11 +109,13 @@ The deployment is split into two services while keeping one repository:
 3. Wait for the service URL, such as `https://gitcourt-backend.onrender.com`.
 4. Confirm `https://gitcourt-backend.onrender.com/api/health` returns `{"status":"ok"}`.
 
-The backend variables are managed by `render.yaml`:
+The backend variables:
 
 ```text
 NODE_ENV=production
-DATABASE_URL=file:/var/data/gitcourt.db
+DATABASE_URL=postgresql://postgres:<SUPABASE_DB_PASSWORD>@db.nhvcdnteolcqzwbhkgus.supabase.co:5432/postgres
+SUPABASE_URL=https://nhvcdnteolcqzwbhkgus.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_ZVjCYGUlgZmdIT5yvJ7J-w_lIFdPNMQ
 GIT_REPOSITORIES_PATH=/var/data/repositories
 AI_SUMMARY_ENABLED=false
 CORS_ALLOWED_ORIGINS=https://your-project.vercel.app
@@ -115,7 +123,7 @@ CORS_ALLOWED_ORIGINS=https://your-project.vercel.app
 
 ### Vercel frontend
 
-Create a Vercel project from the same `main` branch. Keep the repository's `vercel.json` build command (`npm ci` followed by `npm run vercel-build`); the frontend build intentionally does **not** migrate or seed a local database.
+Create a Vercel project from the same `main` branch. Keep the repository's `vercel.json` build command (`npm ci` followed by `npm run vercel-build`); the frontend build intentionally does **not** run database migrations.
 
 Configure these Vercel project variables for Production and Preview:
 
@@ -131,7 +139,7 @@ After the frontend is deployed, add its exact URL to Render's `CORS_ALLOWED_ORIG
 npm run verify:deployment -- https://your-project.vercel.app https://gitcourt-backend.onrender.com
 ```
 
-Render's persistent disk keeps the SQLite metadata and Git repositories together on the backend's single instance. This is suitable for the hackathon prototype, but it is not a horizontally scalable production storage design; moving beyond the prototype would require hosted PostgreSQL, shared object storage, and write coordination. The Vercel project does not store user repositories. Attach the supplied **`.xyz` domain** to Vercel only after the split URL passes verification.
+Supabase keeps relational metadata in PostgreSQL, while Render's persistent disk stores Git repositories only. This is suitable for the hackathon prototype; production hardening still needs shared object storage and write coordination. The Vercel project does not store user repositories. Attach the supplied **`.xyz` domain** to Vercel only after the split URL passes verification.
 
 ## Devpost submission package
 
@@ -139,7 +147,7 @@ Render's persistent disk keeps the SQLite metadata and Git repositories together
 - **Summary:** Fork a real public case, explore a what-if argument, and make every change reviewable.
 - **Problem:** Public court histories are difficult to follow and unsafe to alter for learning.
 - **Solution:** Source-linked case repositories, isolated moot-court forks, legal-theory branches, reviewable pull requests, conflict explanations, blame, audit events, and guarded AI summaries.
-- **Tech stack:** Next.js, React, TypeScript, Prisma, SQLite, `isomorphic-git`, Zod, and an optional OpenAI-compatible summary provider.
+- **Tech stack:** Next.js, React, TypeScript, Prisma, PostgreSQL (Supabase), `isomorphic-git`, Zod, and an optional OpenAI-compatible summary provider.
 - **Source attribution:** Carpenter v. United States, No. 16-402, from the public Supreme Court docket and opinion sources listed in the application.
 - **Demo sequence:** Problem (0:00), public history (0:20), fork and alternate argument (0:45), pull request and conflict (1:15), blame and AI summary (1:50), impact and limitations (2:20).
 - **Disclosure:** Pre-existing open-source libraries, public court sources, and any configured AI model are disclosed; AI output is educational orientation, not legal advice.

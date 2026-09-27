@@ -16,6 +16,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate deploy",
+    "db:supabase:init": "psql \"$DATABASE_URL\" -f supabase.db.sql",
     "db:seed": "tsx prisma/seed.ts",
     "import:public-case": "tsx prisma/seed.ts",
     "vercel-build": "./node_modules/.bin/next build",

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { apiUrl } from "@/lib/api-client";
+
 type PullRequestWorkspaceProps = {
   repositoryId: string;
   sourceBranchName: string;
@@ -86,7 +88,7 @@ async function requestJson<T>(
   url: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const response = await fetch(url, {
+  const response = await fetch(apiUrl(url), {
     ...options,
     headers: {
       "content-type": "application/json",

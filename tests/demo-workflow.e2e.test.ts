@@ -74,12 +74,17 @@ test(
         },
       );
 
-      const [{ GET: health }, { default: renderCasePage }, { POST: fork }] =
-        await Promise.all([
-          import("@/app/api/health/route"),
-          import("@/app/cases/[slug]/page"),
-          import("@/app/api/cases/[slug]/fork/route"),
-        ]);
+      const [
+        { GET: health },
+        { GET: caseApi },
+        { default: renderCasePage },
+        { POST: fork },
+      ] = await Promise.all([
+        import("@/app/api/health/route"),
+        import("@/app/api/cases/[slug]/route"),
+        import("@/app/cases/[slug]/page"),
+        import("@/app/api/cases/[slug]/fork/route"),
+      ]);
       const [{ POST: createBranch }, { POST: createCommit }] =
         await Promise.all([
           import("@/app/api/repositories/[repositoryId]/branches/route"),
@@ -101,6 +106,16 @@ test(
         params: Promise.resolve({ slug: demoCase.slug }),
       });
       assert.ok(page);
+
+      const caseApiResponse = await caseApi(
+        new Request(`https://example.test/api/cases/${demoCase.slug}`),
+        { params: Promise.resolve({ slug: demoCase.slug }) },
+      );
+      const caseApiPayload = await expectJson(caseApiResponse, 200);
+      assert.equal(
+        (caseApiPayload.history as unknown[]).length,
+        getDemoDocketEntries().length,
+      );
 
       const startingEntry = getDemoDocketEntries().at(-1);
       assert.ok(startingEntry);

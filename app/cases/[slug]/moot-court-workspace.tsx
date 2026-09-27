@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import type { DemoDocketEntry } from "@/lib/demo-case";
+import { apiUrl } from "@/lib/api-client";
 import PullRequestWorkspace from "@/app/cases/[slug]/pull-request-workspace";
 
 type MootCourtWorkspaceProps = {
@@ -101,7 +102,7 @@ function slugify(value: string): string {
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const response = await fetch(url, {
+  const response = await fetch(apiUrl(url), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -123,7 +124,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 }
 
 async function getJson<T>(url: string): Promise<T> {
-  const response = await fetch(url);
+  const response = await fetch(apiUrl(url));
   let payload: T | ApiFailure;
 
   try {

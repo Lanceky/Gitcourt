@@ -1,27 +1,53 @@
 export {};
 
 async function verifyDeployment(): Promise<void> {
-  const rawBaseUrl = process.argv[2] ?? process.env.DEPLOYMENT_URL;
+  const rawFrontendUrl = process.argv[2] ?? process.env.DEPLOYMENT_URL;
+  const rawBackendUrl =
+    process.argv[3] ?? process.env.BACKEND_URL ?? rawFrontendUrl;
 
-  if (rawBaseUrl === undefined || rawBaseUrl.trim() === "") {
+  if (
+    rawFrontendUrl === undefined ||
+    rawFrontendUrl.trim() === "" ||
+    rawBackendUrl === undefined ||
+    rawBackendUrl.trim() === ""
+  ) {
     throw new Error(
-      "Provide a deployment URL: npm run verify:deployment -- https://your-project.vercel.app",
+      "Provide frontend and backend URLs: npm run verify:deployment -- https://your-project.vercel.app https://gitcourt-backend.onrender.com",
     );
   }
 
-  const baseUrl = new URL(rawBaseUrl);
-  baseUrl.pathname = "/";
-  baseUrl.search = "";
-  baseUrl.hash = "";
+  function normalizeBaseUrl(rawUrl: string): URL {
+    const baseUrl = new URL(rawUrl);
+    baseUrl.pathname = "/";
+    baseUrl.search = "";
+    baseUrl.hash = "";
+    return baseUrl;
+  }
+
+  const frontendUrl = normalizeBaseUrl(rawFrontendUrl);
+  const backendUrl = normalizeBaseUrl(rawBackendUrl);
 
   const checks = [
-    { label: "home page", path: "/" },
-    { label: "case page", path: "/cases/carpenter-v-united-states" },
-    { label: "health endpoint", path: "/api/health" },
+    { label: "frontend home page", baseUrl: frontendUrl, path: "/" },
+    {
+      label: "frontend case page",
+      baseUrl: frontendUrl,
+      path: "/cases/carpenter-v-united-states",
+    },
+    {
+      label: "backend health endpoint",
+      baseUrl: backendUrl,
+      path: "/api/health",
+    },
+    {
+      label: "backend case API",
+      baseUrl: backendUrl,
+      path: "/api/cases/carpenter-v-united-states",
+    },
   ];
 
   for (const check of checks) {
-    const url = new URL(check.path, baseUrl);
+    const url = new URL(check.path, check.baseUrl);
     const response = await fetch(url, {
       headers: { accept: "text/html,application/json" },
       redirect: "error",
@@ -40,6 +66,19 @@ async function verifyDeployment(): Promise<void> {
         payload.status !== "ok"
       ) {
         throw new Error("Health endpoint did not return status=ok.");
+      }
+    }
+
+    if (check.path.startsWith("/api/cases/")) {
+      const payload: unknown = await response.json();
+      if (
+        typeof payload !== "object" ||
+        payload === null ||
+        !("history" in payload) ||
+        !Array.isArray(payload.history) ||
+        payload.history.length === 0
+      ) {
+        throw new Error("Backend case API did not return public history.");
       }
     }
 

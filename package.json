@@ -18,7 +18,9 @@
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "import:public-case": "tsx prisma/seed.ts",
-    "vercel-build": "./node_modules/.bin/prisma generate && ./node_modules/.bin/prisma migrate deploy && ./node_modules/.bin/tsx prisma/seed.ts && ./node_modules/.bin/next build",
+    "vercel-build": "./node_modules/.bin/next build",
+    "render-build": "./node_modules/.bin/prisma generate && ./node_modules/.bin/next build",
+    "render-start": "./node_modules/.bin/prisma migrate deploy && ./node_modules/.bin/tsx prisma/seed.ts && ./node_modules/.bin/next start",
     "verify:deployment": "tsx scripts/verify-deployment.ts"
   },
   "dependencies": {

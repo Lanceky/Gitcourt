@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: gitcourt-backend
+    runtime: node
+    region: virginia
+    plan: starter
+    buildCommand: npm ci && npm run render-build
+    startCommand: npm run render-start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://gitcourt-backend.onrender.com
+      - key: DATABASE_URL
+        value: "file:/var/data/gitcourt.db"
+      - key: GIT_REPOSITORIES_PATH
+        value: /var/data/repositories
+      - key: AI_SUMMARY_ENABLED
+        value: "false"
+      - key: AI_SUMMARY_MODEL
+        value: configured-model
+      - key: AI_SUMMARY_TIMEOUT_MS
+        value: "8000"
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+    disk:
+      name: gitcourt-data
+      mountPath: /var/data
+      sizeGB: 1

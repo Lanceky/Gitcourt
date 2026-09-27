@@ -3,6 +3,8 @@ import Link from "next/link";
 
 import CaseRepositoryExplorer from "@/app/cases/[slug]/case-repository-explorer";
 import MootCourtWorkspace from "@/app/cases/[slug]/moot-court-workspace";
+import { apiUrl, usesExternalApi } from "@/lib/api-client";
+import { caseReadResponseSchema } from "@/lib/api-contracts";
 import { demoCase, getDemoDocketEntries } from "@/lib/demo-case";
 import { CaseRepositoryService } from "@/lib/domain/case-repository-service";
 import { db } from "@/lib/db";
@@ -15,6 +17,32 @@ type CasePageProps = {
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+async function loadPersistedHistory() {
+  if (usesExternalApi()) {
+    const response = await fetch(
+      apiUrl(`/api/cases/${encodeURIComponent(demoCase.slug)}`),
+      {
+        cache: "no-store",
+        headers: { accept: "application/json" },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `The Git Court backend returned HTTP ${response.status} while loading the case.`,
+      );
+    }
+
+    return caseReadResponseSchema.parse(await response.json()).history;
+  }
+
+  const imported = await importPublicCase(db, demoCase);
+  return new CaseRepositoryService(db).getHistory(
+    imported.repositoryId,
+    "main",
+  );
+}
+
 export default async function CasePage({ params }: CasePageProps) {
   const { slug } = await params;
   const docketEntries = getDemoDocketEntries();
@@ -23,11 +51,7 @@ export default async function CasePage({ params }: CasePageProps) {
     notFound();
   }
 
-  const imported = await importPublicCase(db, demoCase);
-  const persistedHistory = await new CaseRepositoryService(db).getHistory(
-    imported.repositoryId,
-    "main",
-  );
+  const persistedHistory = await loadPersistedHistory();
   const explorerEntries = docketEntries.map((entry) => {
     const persisted = persistedHistory.find(
       (commit) =>

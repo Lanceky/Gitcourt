@@ -87,27 +87,51 @@ npm run build
 
 The route boundary validates internal IDs, Git references, branch names, repository document paths, public HTTPS sources, and bounded text fields before domain operations run. Student writes, reviews, merges, and explicit AI refreshes have server-side in-memory rate limits for the prototype; production deployment should add an edge or service-level limiter. The UI renders source text and student arguments as escaped React text rather than injecting HTML, and all write failures remain visible to the user.
 
-## Vercel-only deployment
+## Split deployment: Render backend and Vercel frontend
 
-Git Court is deployed as one Next.js project on **Vercel**. The same deployment serves the React pages and the `/api/*` route handlers; no separate backend service is required. `vercel.json` uses `npm ci` and `npm run vercel-build`, which generates Prisma Client, applies committed migrations, imports the public fixture idempotently, and builds the application.
+The deployment is split into two services while keeping one repository:
 
-Configure these Vercel project variables for the seeded demo:
+- **Render backend:** runs the Node.js Next server that owns `/api/*`, Prisma, SQLite, and the filesystem-backed Git repositories.
+- **Vercel frontend:** runs the React/Next pages. Its server-rendered case page and browser workflow call the Render API through `NEXT_PUBLIC_API_BASE_URL`.
+
+`render.yaml` is a Render Blueprint for the backend. It uses a persistent disk at `/var/data`, runs migrations and the idempotent public-case seed when the service starts, and exposes `/api/health`. A persistent disk requires a paid Render instance; the `starter` plan in the Blueprint is intentional. Set `CORS_ALLOWED_ORIGINS` in Render to the exact Vercel production URL, plus any Vercel preview URLs you need, separated by commas.
+
+### Render backend
+
+1. In Render, create a Blueprint from the repository's `main` branch and select `render.yaml`.
+2. Provide `CORS_ALLOWED_ORIGINS`, for example `https://your-project.vercel.app`.
+3. Wait for the service URL, such as `https://gitcourt-backend.onrender.com`.
+4. Confirm `https://gitcourt-backend.onrender.com/api/health` returns `{"status":"ok"}`.
+
+The backend variables are managed by `render.yaml`:
 
 ```text
 NODE_ENV=production
-DATABASE_URL=file:./dev.db
-GIT_REPOSITORIES_PATH=.data/repositories
-NEXT_PUBLIC_APP_URL=https://your-project.vercel.app
+DATABASE_URL=file:/var/data/gitcourt.db
+GIT_REPOSITORIES_PATH=/var/data/repositories
 AI_SUMMARY_ENABLED=false
+CORS_ALLOWED_ORIGINS=https://your-project.vercel.app
 ```
 
-After deployment, verify the clean public URL with:
+### Vercel frontend
+
+Create a Vercel project from the same `main` branch. Keep the repository's `vercel.json` build command (`npm ci` followed by `npm run vercel-build`); the frontend build intentionally does **not** migrate or seed a local database.
+
+Configure these Vercel project variables for Production and Preview:
+
+```text
+NODE_ENV=production
+NEXT_PUBLIC_APP_URL=https://your-project.vercel.app
+NEXT_PUBLIC_API_BASE_URL=https://gitcourt-backend.onrender.com
+```
+
+After the frontend is deployed, add its exact URL to Render's `CORS_ALLOWED_ORIGINS`, redeploy the backend if necessary, and verify both services:
 
 ```bash
-npm run verify:deployment -- https://your-project.vercel.app
+npm run verify:deployment -- https://your-project.vercel.app https://gitcourt-backend.onrender.com
 ```
 
-The current SQLite database and `isomorphic-git` filesystem are intentionally kept unchanged for the hackathon. Vercel deployment files are read-only and writable `/tmp` storage is instance-local, so a Vercel-only deployment is suitable for the public, read-first seeded demo but does **not** provide durable fork, commit, review, or merge persistence across serverless instances. The complete collaboration workflow remains reproducible locally. Durable production collaboration requires replacing these adapters with Vercel-compatible persistent database and object storage; no Render service is introduced or required by this code path. Attach the supplied **`.xyz` domain** to the Vercel project only after the public URL passes verification.
+Render's persistent disk keeps the SQLite metadata and Git repositories together on the backend's single instance. This is suitable for the hackathon prototype, but it is not a horizontally scalable production storage design; moving beyond the prototype would require hosted PostgreSQL, shared object storage, and write coordination. The Vercel project does not store user repositories. Attach the supplied **`.xyz` domain** to Vercel only after the split URL passes verification.
 
 ## Devpost submission package
 

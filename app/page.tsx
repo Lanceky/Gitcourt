@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import GitHubProjectMenu from "@/app/github-project-menu";
 import { demoCase, getDemoDocketEntries } from "@/lib/demo-case";
 
 const gitToCourt = [
@@ -22,9 +23,12 @@ export default function HomePage() {
           </span>
           Git Court
         </Link>
-        <span className="topbar-note">
-          Public records, versioned for learning
-        </span>
+        <div className="topbar-actions">
+          <span className="topbar-note">
+            Public records, versioned for learning
+          </span>
+          <GitHubProjectMenu caseHref={`/cases/${demoCase.slug}`} />
+        </div>
       </header>
 
       <main className="main landing-page">

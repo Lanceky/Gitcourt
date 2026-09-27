@@ -15,9 +15,6 @@ const environmentSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   DATABASE_URL: z.string().min(1).default(defaultDatabaseUrl),
-  NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
-  SUPABASE_URL: z.string().url().optional(),
-  SUPABASE_PUBLISHABLE_KEY: z.string().min(1).optional(),
   GIT_REPOSITORIES_PATH: z.string().min(1).default(defaultGitRepositoriesPath),
   AI_SUMMARY_ENABLED: z.enum(["true", "false"]).default("false"),
   AI_SUMMARY_API_URL: z.string().url().optional().or(z.literal("")),
@@ -29,9 +26,6 @@ const environmentSchema = z.object({
 const parsedEnvironment = environmentSchema.safeParse({
   NODE_ENV: process.env.NODE_ENV,
   DATABASE_URL: process.env.DATABASE_URL,
-  NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-  SUPABASE_URL: process.env.SUPABASE_URL,
-  SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY,
   GIT_REPOSITORIES_PATH: process.env.GIT_REPOSITORIES_PATH,
   AI_SUMMARY_ENABLED: process.env.AI_SUMMARY_ENABLED,
   AI_SUMMARY_API_URL: process.env.AI_SUMMARY_API_URL,

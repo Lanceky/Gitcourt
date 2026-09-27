@@ -11,14 +11,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: NEXT_PUBLIC_APP_URL
-        value: https://gitcourt-backend.onrender.com
       - key: DATABASE_URL
         sync: false
-      - key: SUPABASE_URL
-        value: https://nhvcdnteolcqzwbhkgus.supabase.co
-      - key: SUPABASE_PUBLISHABLE_KEY
-        value: sb_publishable_ZVjCYGUlgZmdIT5yvJ7J-w_lIFdPNMQ
       - key: GIT_REPOSITORIES_PATH
         value: /var/data/repositories
       - key: AI_SUMMARY_ENABLED

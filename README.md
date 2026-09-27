@@ -50,12 +50,15 @@ npm ci
 cp .env.example .env
 npm run db:generate
 npm run db:supabase:init
-npm run db:migrate
 npm run db:seed
 npm run dev
 ```
 
-Open `http://localhost:3000` after the development server starts. The migration and seed commands are safe to rerun; they preserve the single public fixture without duplicating its docket entries.
+Use a non-production Supabase database for local development and set its
+PostgreSQL connection string as `DATABASE_URL` in `.env`. Open
+`http://localhost:3000` after the development server starts. Migrations and
+the seed are safe to rerun; they preserve the single public fixture without
+duplicating its docket entries.
 
 `db:supabase:init` applies the checked-in Prisma migrations to the Supabase
 PostgreSQL project. Prisma migrations are the schema source of truth; do not
@@ -93,59 +96,79 @@ npm run build
 
 The route boundary validates internal IDs, Git references, branch names, repository document paths, public HTTPS sources, and bounded text fields before domain operations run. Student writes, reviews, merges, and explicit AI refreshes have server-side in-memory rate limits for the prototype; production deployment should add an edge or service-level limiter. The UI renders source text and student arguments as escaped React text rather than injecting HTML, and all write failures remain visible to the user.
 
-## Split deployment: Render backend + Supabase database + Vercel frontend
+## Deployment: Vercel frontend + Render API + Supabase PostgreSQL
 
-The deployment is split across services while keeping one repository:
+The deployment has three distinct roles:
 
-- **Render backend:** runs the Node.js Next server that owns `/api/*`, Prisma, and the filesystem-backed Git repositories.
-- **Supabase:** hosts the PostgreSQL database used by Prisma.
-- **Vercel frontend:** runs the React/Next pages. Its server-rendered case page and browser workflow call the Render API through `NEXT_PUBLIC_API_BASE_URL`.
+- **Vercel** serves the Next.js pages.
+- **Render** runs the Next.js API routes and the filesystem-backed Git adapter.
+- **Supabase PostgreSQL** is the persistent relational database accessed by
+  Prisma from the Render API.
 
-`render.yaml` is a Render Blueprint for the backend. It applies checked-in
-Prisma migrations to Supabase, runs the idempotent public-case seed when the
-service starts, and exposes `/api/health`. A persistent disk still stores Git
-repositories at `/var/data/repositories`. Set `CORS_ALLOWED_ORIGINS` in Render
-to the exact Vercel production URL, plus any Vercel preview URLs you need,
-separated by commas.
+Vercel must call the Render API; it must not attempt to use local filesystem
+storage or connect directly to Prisma. Set `NEXT_PUBLIC_API_BASE_URL` in
+Vercel's Production and Preview environments to the Render service origin.
+The Vercel build fails with an actionable error if this value is missing.
+Set `CORS_ALLOWED_ORIGINS` in Render to the exact Vercel production origin
+(and any Preview origins you intend to test).
 
-### Render backend
+The Render service needs a paid plan with a persistent disk because Render's
+Free instances do not support disks. The Blueprint mounts `gitcourt-data` at
+`/var/data`; Git repositories are stored under
+`/var/data/repositories`. Supabase stores relational records, not Git object
+files.
 
-1. In Render, create a Blueprint from the repository's `main` branch and select `render.yaml`.
-2. Provide `CORS_ALLOWED_ORIGINS`, for example `https://your-project.vercel.app`.
-3. Wait for the service URL, such as `https://gitcourt-backend.onrender.com`.
-4. Confirm `https://gitcourt-backend.onrender.com/api/health` returns `{"status":"ok"}`.
+### Configure Supabase and Render
 
-The backend variables:
+1. In Supabase, copy the PostgreSQL connection string and set it as `DATABASE_URL`
+   in the Render web service's Environment settings. Keep the password private.
+2. Create or update the Render web service from `render.yaml`. Use a plan that
+   supports persistent disks, and attach a 1 GB or larger disk at exactly
+   `/var/data`. The existing Free service must be upgraded before a disk can
+   be attached.
+3. Set `CORS_ALLOWED_ORIGINS` in Render to the Vercel production origin, for
+   example `https://your-project.vercel.app`.
+4. Deploy the latest `main` commit. Render runs `prisma migrate deploy`, seeds
+   the public case idempotently, then starts the API.
+5. Verify `https://<render-service>.onrender.com/api/health` returns
+   `{"status":"ok"}` and the case API returns a non-empty `history`.
 
-```text
-NODE_ENV=production
-DATABASE_URL=postgresql://postgres:<SUPABASE_DB_PASSWORD>@db.nhvcdnteolcqzwbhkgus.supabase.co:5432/postgres
-SUPABASE_URL=https://nhvcdnteolcqzwbhkgus.supabase.co
-SUPABASE_PUBLISHABLE_KEY=sb_publishable_ZVjCYGUlgZmdIT5yvJ7J-w_lIFdPNMQ
-GIT_REPOSITORIES_PATH=/var/data/repositories
-AI_SUMMARY_ENABLED=false
-CORS_ALLOWED_ORIGINS=https://your-project.vercel.app
-```
+Do not add Supabase publishable or service-role keys to Vercel. The current
+application uses Prisma over the private PostgreSQL connection on Render; it
+does not call Supabase's browser APIs.
 
-### Vercel frontend
+### Configure Vercel
 
-Create a Vercel project from the same `main` branch. Keep the repository's `vercel.json` build command (`npm ci` followed by `npm run vercel-build`); the frontend build intentionally does **not** run database migrations.
+1. Import the same GitHub repository into Vercel with the Next.js framework.
+2. Keep `npm ci` as the install command and `npm run vercel-build` as the
+   build command. Vercel does not run migrations or seeds.
+3. Before deploying, set this environment variable for both **Production**
+   and **Preview**:
 
-Configure these Vercel project variables for Production and Preview:
+   ```text
+   NEXT_PUBLIC_API_BASE_URL=https://<render-service>.onrender.com
+   ```
 
-```text
-NODE_ENV=production
-NEXT_PUBLIC_APP_URL=https://your-project.vercel.app
-NEXT_PUBLIC_API_BASE_URL=https://gitcourt-backend.onrender.com
-```
+   Use the Render service origin only: no `/api` path or trailing slash.
+   This public URL is embedded in the client bundle, so redeploy Vercel after
+   changing it.
 
-After the frontend is deployed, add its exact URL to Render's `CORS_ALLOWED_ORIGINS`, redeploy the backend if necessary, and verify both services:
+4. Add the final Vercel production origin to Render's
+   `CORS_ALLOWED_ORIGINS`, then redeploy Render if you changed the value.
+
+Verify both hosts:
 
 ```bash
-npm run verify:deployment -- https://your-project.vercel.app https://gitcourt-backend.onrender.com
+npm run verify:deployment -- \
+  https://your-project.vercel.app \
+  https://<render-service>.onrender.com
 ```
 
-Supabase keeps relational metadata in PostgreSQL, while Render's persistent disk stores Git repositories only. This is suitable for the hackathon prototype; production hardening still needs shared object storage and write coordination. The Vercel project does not store user repositories. Attach the supplied **`.xyz` domain** to Vercel only after the split URL passes verification.
+Vercel hosts the user-facing app, while API requests, Supabase database
+connections, and Git operations remain on Render. A future fully serverless
+deployment needs to replace filesystem Git storage with durable shared storage.
+Attach the supplied **`.xyz` domain** to Vercel only after both URLs pass
+verification.
 
 ## Devpost submission package
 

@@ -2,6 +2,12 @@ const configuredApiBaseUrl = (() => {
   const rawValue = process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ?? "";
 
   if (rawValue === "") {
+    if (process.env.VERCEL === "1" && process.env.NODE_ENV === "production") {
+      throw new Error(
+        "NEXT_PUBLIC_API_BASE_URL must point to the Render API origin in Vercel Production and Preview environments.",
+      );
+    }
+
     return "";
   }
 

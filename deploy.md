@@ -1,23 +1,22 @@
 # Git Court deployment
 
-This project is deployed as three services from the same GitHub repository:
+This project uses three services from the same GitHub repository:
 
-- **Render** runs the backend. It owns the `/api/*` routes, Prisma access, and
-  the filesystem-backed Git repositories.
-- **Supabase** runs the PostgreSQL database consumed by Prisma.
-- **Vercel** runs the frontend. It serves the pages and calls the Render API
-  through `NEXT_PUBLIC_API_BASE_URL`.
+- **Vercel** serves the Next.js pages.
+- **Render** runs the Next.js API routes and filesystem-backed Git repositories.
+- **Supabase** provides PostgreSQL for the Render API through Prisma.
 
-Deploy the backend first. The frontend needs the backend URL during its build
-and runtime, and the backend needs the final frontend URL for CORS.
+Deploy Render first, then configure `NEXT_PUBLIC_API_BASE_URL` in Vercel before
+building the frontend. Once the final Vercel URL is known, add it to the
+Render service's CORS allowlist.
 
 ## 1. Prepare the repository
 
 1. Push the intended deployment commit to the repository's `main` branch.
 2. Confirm that `render.yaml`, `vercel.json`, `package.json`, and
    `package-lock.json` are present on `main`.
-3. Do not commit `.env`, `.data/`, or API keys. Supabase stores production
-   relational data, while Render's persistent disk stores Git repositories.
+3. Do not commit `.env`, `.data/`, or secrets. Supabase stores relational
+   records; Render's persistent disk stores Git repositories.
 
 The deployment commands are already defined in `package.json`:
 
@@ -28,7 +27,8 @@ The deployment commands are already defined in `package.json`:
 
 ## 2. Initialize Supabase database
 
-Before deploying Render, initialize the Supabase PostgreSQL schema once.
+Render runs checked-in Prisma migrations at startup. You can also apply them
+manually from a trusted local environment using the Supabase connection string.
 
 1. Set `DATABASE_URL` locally to your full Supabase Postgres connection string:
 
@@ -42,11 +42,10 @@ postgresql://postgres:<YOUR-PASSWORD>@db.nhvcdnteolcqzwbhkgus.supabase.co:5432/p
 npm run db:supabase:init
 ```
 
-This applies the checked-in PostgreSQL migrations to the Supabase project.
-Future production schema changes must be added as Prisma migrations and are
-applied automatically by Render during startup. Do not run `supabase.db.sql`
-before this command; that legacy SQL snapshot is retained for reference, while
-Prisma migrations are the source of truth.
+This applies the checked-in PostgreSQL migrations to Supabase. Future schema
+changes must be added as Prisma migrations; Render applies them automatically
+on startup. Prisma migrations are the source of truth. Do not apply the legacy
+`supabase.db.sql` snapshot first.
 
 ## 3. Deploy the backend on Render
 
@@ -58,9 +57,10 @@ Prisma migrations are the source of truth.
 4. Select the `main` branch.
 5. Let Render read the repository's `render.yaml`.
 6. Review the service before applying it:
-   - Service name: `gitcourt-backend`
+   - Service name: `gitcourt-backend` in the Blueprint (or the existing
+     service name shown in your Render dashboard)
    - Region: Virginia
-   - Plan: `starter`
+   - Plan: a paid plan that supports persistent disks
    - Persistent disk: `gitcourt-data`, mounted at `/var/data`, 1 GB
    - Health check: `/api/health`
 7. Apply the Blueprint and wait for the first deploy to finish.
@@ -69,26 +69,28 @@ The persistent disk is still required for Git repositories. A Render plan with
 a persistent disk is paid; do not switch this service to an ephemeral free
 instance if user-created forks and commits must survive restarts.
 
+The service shown as **Free** in Render cannot attach a disk. Upgrade it first
+or create the Blueprint service on a disk-capable plan; then confirm its
+**Disks** settings show `gitcourt-data` mounted at `/var/data`.
+
 ### Render environment variables
 
 `render.yaml` supplies the non-secret values. In the Render service's
 **Environment** tab, set:
 
-| Key                        | Value                                                                                |
-| -------------------------- | ------------------------------------------------------------------------------------ |
-| `NODE_ENV`                 | `production`                                                                         |
-| `DATABASE_URL`             | `postgresql://postgres:<PASSWORD>@db.nhvcdnteolcqzwbhkgus.supabase.co:5432/postgres` |
-| `SUPABASE_URL`             | `https://nhvcdnteolcqzwbhkgus.supabase.co`                                           |
-| `SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_ZVjCYGUlgZmdIT5yvJ7J-w_lIFdPNMQ`                                     |
-| `GIT_REPOSITORIES_PATH`    | `/var/data/repositories`                                                             |
-| `AI_SUMMARY_ENABLED`       | `false`                                                                              |
-| `AI_SUMMARY_MODEL`         | `configured-model`                                                                   |
-| `AI_SUMMARY_TIMEOUT_MS`    | `8000`                                                                               |
-| `CORS_ALLOWED_ORIGINS`     | Set after the Vercel URL exists; see below                                           |
+| Key                     | Value                                                         |
+| ----------------------- | ------------------------------------------------------------- |
+| `NODE_ENV`              | `production`                                                  |
+| `DATABASE_URL`          | Supabase PostgreSQL connection string (password kept private) |
+| `GIT_REPOSITORIES_PATH` | `/var/data/repositories`                                      |
+| `AI_SUMMARY_ENABLED`    | `false`                                                       |
+| `AI_SUMMARY_MODEL`      | `configured-model`                                            |
+| `AI_SUMMARY_TIMEOUT_MS` | `8000`                                                        |
+| `CORS_ALLOWED_ORIGINS`  | Exact Vercel origin; configure after Vercel deploys           |
 
 `DATABASE_URL` is marked `sync: false` in the Blueprint, so it is a required
 secret you must add to the Render service yourself. Use the Supabase
-PostgreSQL connection string and replace `<PASSWORD>` with the database
+PostgreSQL connection string and replace the password placeholder with the database
 password. If the deploy log says `Render startup requires DATABASE_URL`, this
 variable is missing from the environment of the service that is starting.
 Adding it to a different Render service or only to a local `.env` file will
@@ -120,14 +122,14 @@ never expose them as `NEXT_PUBLIC_*` variables in Vercel.
 Copy the backend's public URL from Render, for example:
 
 ```text
-https://gitcourt-backend.onrender.com
+https://gitcourt.onrender.com
 ```
 
 Check the service in a browser or terminal:
 
 ```bash
-curl --fail https://gitcourt-backend.onrender.com/api/health
-curl --fail https://gitcourt-backend.onrender.com/api/cases/carpenter-v-united-states
+curl --fail https://gitcourt.onrender.com/api/health
+curl --fail https://gitcourt.onrender.com/api/cases/carpenter-v-united-states
 ```
 
 The health response must contain `"status":"ok"`. The case API response must
@@ -156,32 +158,32 @@ applied, rather than starting against an unknown schema.
    - Output: managed by Next.js; do not configure a static export
 7. Do not add a separate Render build command to Vercel.
 
-`vercel-build` runs only `next build`. Prisma schema sync, seeding, and Git
-repository storage belong to Render/Supabase, not Vercel.
+`vercel-build` runs only the Next.js build. Prisma migrations, seeding, and
+Git repository storage belong to Render/Supabase, not Vercel.
 
 ### Vercel environment variables
 
 Add these variables in the Vercel project for **Production** and **Preview**
 before the first deployment:
 
-| Key                        | Production value                             | Preview value                        |
-| -------------------------- | -------------------------------------------- | ------------------------------------ |
-| `NODE_ENV`                 | `production`                                 | `production`                         |
-| `NEXT_PUBLIC_APP_URL`      | `https://your-production-project.vercel.app` | The specific preview URL, when known |
-| `NEXT_PUBLIC_API_BASE_URL` | Render backend URL                           | The same Render backend URL          |
+| Key                        | Production value                | Preview value         |
+| -------------------------- | ------------------------------- | --------------------- |
+| `NEXT_PUBLIC_API_BASE_URL` | `https://gitcourt.onrender.com` | Render backend origin |
 
 `NEXT_PUBLIC_API_BASE_URL` must be an origin only:
 
 ```text
-https://gitcourt-backend.onrender.com
+https://gitcourt.onrender.com
 ```
 
 Do not append `/api`, a path, query parameters, or a trailing path segment.
 The frontend adds `/api/...` itself.
 
-The frontend does not need `DATABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, or `GIT_REPOSITORIES_PATH` when
-`NEXT_PUBLIC_API_BASE_URL` points to Render. Do not put `AI_SUMMARY_API_KEY`
-or other server-only secrets in Vercel public variables.
+`NEXT_PUBLIC_API_BASE_URL` is required in Vercel Production and Preview and
+must point to the Render API origin. The Vercel build fails if it is omitted.
+The Vercel app does not need `DATABASE_URL` or `GIT_REPOSITORIES_PATH`. Do not
+put database passwords, service-role keys, or `AI_SUMMARY_API_KEY` in Vercel
+or in any `NEXT_PUBLIC_*` variable.
 
 Deploy the project and copy its final production URL.
 
@@ -213,7 +215,7 @@ From the repository root, run:
 ```bash
 npm run verify:deployment -- \
   https://your-production-project.vercel.app \
-  https://gitcourt-backend.onrender.com
+  https://gitcourt.onrender.com
 ```
 
 The verifier checks:
@@ -266,13 +268,14 @@ Confirm that:
 - The deployment cloned the current `main` commit.
 - The build command is `npm run vercel-build`.
 - `vercel-build` is `./node_modules/.bin/next build`.
-- Render, not Vercel, is running `render-start`.
+- Vercel's `NEXT_PUBLIC_API_BASE_URL` is the Render service origin, not a
+  Supabase URL or a path ending in `/api`.
 
 ### The Vercel case page returns an error
 
 Check `NEXT_PUBLIC_API_BASE_URL` in the Vercel environment and redeploy after
 changing it. It must point to the Render origin and must not include `/api`.
-Also check the Render `/api/health` endpoint and the Render service logs.
+Also check the Render `/api/health` endpoint and Render service logs.
 
 If `/api/health` returns `503` with `DATABASE_UNAVAILABLE`, verify that the
 disk is attached to this exact service and that its mount path is `/var/data`,

@@ -14,6 +14,37 @@ type CasePageProps = {
   params: Promise<{ slug: string }>;
 };
 
+function formatRelativeDate(date: string): string {
+  const differenceInDays = Math.max(
+    0,
+    Math.floor(
+      (Date.now() - new Date(`${date}T00:00:00.000Z`).getTime()) /
+        (24 * 60 * 60 * 1000),
+    ),
+  );
+
+  if (differenceInDays < 1) {
+    return "today";
+  }
+  if (differenceInDays < 30) {
+    return `${differenceInDays}d ago`;
+  }
+  if (differenceInDays < 365) {
+    return `${Math.floor(differenceInDays / 30)}mo ago`;
+  }
+
+  return `${Math.floor(differenceInDays / 365)}y ago`;
+}
+
+function fileNameForEntry(title: string, index: number): string {
+  const fileName = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  return `docket/${String(index + 1).padStart(2, "0")}-${fileName || "entry"}.md`;
+}
+
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -75,6 +106,7 @@ export default async function CasePage({ params }: CasePageProps) {
       aiGeneratedAt: persisted?.aiGeneratedAt?.toISOString() ?? null,
     };
   });
+  const latestEntry = docketEntries[docketEntries.length - 1];
 
   return (
     <div className="shell">
@@ -100,9 +132,13 @@ export default async function CasePage({ params }: CasePageProps) {
 
       <main className="main repository-page">
         <nav className="breadcrumb" aria-label="Breadcrumb">
-          <Link href="/">Home</Link>
+          <span className="repo-breadcrumb-icon" aria-hidden="true">
+            ◇
+          </span>
+          <Link href="/">gitcourt</Link>
           <span aria-hidden="true">/</span>
-          <span aria-current="page">{demoCase.slug}</span>
+          <strong aria-current="page">{demoCase.slug}</strong>
+          <span className="public-badge">Public</span>
         </nav>
 
         <section className="repository-header" aria-labelledby="case-title">
@@ -121,6 +157,57 @@ export default async function CasePage({ params }: CasePageProps) {
           </div>
         </section>
 
+        <nav className="repo-tabs" aria-label="Repository sections">
+          <a className="repo-tab is-active" href="#docket">
+            <span aria-hidden="true">▤</span>
+            Docket
+          </a>
+          <a className="repo-tab" href="#filings">
+            <span aria-hidden="true">▱</span>
+            Filings
+          </a>
+          <a className="repo-tab" href="#branches">
+            <span aria-hidden="true">⑂</span>
+            Branches
+          </a>
+          <a className="repo-tab" href="#forks">
+            <span aria-hidden="true">⑂</span>
+            Forks
+          </a>
+          <a className="repo-tab" href="#insights">
+            <span aria-hidden="true">◒</span>
+            Insights
+          </a>
+        </nav>
+
+        <div className="repo-toolbar" aria-label="Repository toolbar">
+          <div className="repo-toolbar-left">
+            <button className="branch-button" type="button">
+              <span aria-hidden="true">⑂</span>
+              main
+              <span className="caret" aria-hidden="true">
+                ▾
+              </span>
+            </button>
+            <a className="toolbar-link" href="#branches">
+              1 branch
+            </a>
+          </div>
+          <div className="repo-toolbar-right">
+            <label className="go-to-filing">
+              <span aria-hidden="true">⌕</span>
+              <span className="sr-only">Go to filing</span>
+              <input placeholder="Go to filing" type="search" />
+            </label>
+            <a className="button button-code" href="#moot-title">
+              Fork this case
+              <span className="button-caret" aria-hidden="true">
+                ▾
+              </span>
+            </a>
+          </div>
+        </div>
+
         <MootCourtWorkspace
           caseSlug={demoCase.slug}
           caseTitle={demoCase.title}
@@ -132,22 +219,65 @@ export default async function CasePage({ params }: CasePageProps) {
 
         <div className="repository-grid">
           <section className="repository-main">
-            <article className="card readme readme-expanded">
+            <section className="repo-file-list" id="docket">
+              <div className="file-list-header">
+                <div className="latest-commit">
+                  <span className="avatar avatar-small" aria-hidden="true">
+                    SC
+                  </span>
+                  <strong>{latestEntry.title}</strong>
+                  <span className="muted">
+                    · {formatRelativeDate(latestEntry.date)}
+                  </span>
+                </div>
+                <a className="history-link" href="#history-title">
+                  ↶ {docketEntries.length} commits
+                </a>
+              </div>
+              <div className="file-list-rows">
+                {docketEntries.map((entry, index) => (
+                  <a
+                    className="file-row"
+                    href={`/cases/${demoCase.slug}#commit-${entry.sha.slice(0, 7)}`}
+                    key={entry.sha}
+                  >
+                    <span className="file-row-icon" aria-hidden="true">
+                      ▤
+                    </span>
+                    <span className="file-row-content">
+                      <strong>{fileNameForEntry(entry.title, index)}</strong>
+                      <span>{entry.summary}</span>
+                    </span>
+                    <time dateTime={entry.date}>
+                      {formatRelativeDate(entry.date)}
+                    </time>
+                  </a>
+                ))}
+              </div>
+            </section>
+
+            <article className="card readme readme-expanded" id="filings">
               <div className="readme-heading">
                 <span className="file-icon" aria-hidden="true">
-                  #
+                  ▤
                 </span>
                 <div>
-                  <h2>README / Plain-language headnote</h2>
-                  <p>Why this public record matters</p>
+                  <h2>README.md</h2>
+                  <p>
+                    Plain-language headnote · rendered from the public record
+                  </p>
                 </div>
               </div>
-              <p>
-                The Court considered whether the government&apos;s access to
-                historical cell-site location information was a Fourth Amendment
-                search requiring a warrant. This repository preserves a small,
-                source-linked path through that public history.
-              </p>
+              <div className="readme-markdown">
+                <h3>Carpenter v. United States</h3>
+                <p>
+                  The Court considered whether the government&apos;s access to
+                  historical cell-site location information was a Fourth
+                  Amendment search requiring a warrant. This repository
+                  preserves a small, source-linked path through that public
+                  history.
+                </p>
+              </div>
               <div className="source-attribution">
                 <span>Primary source</span>
                 <a href={demoCase.sourceUrl} rel="noreferrer" target="_blank">
@@ -169,32 +299,82 @@ export default async function CasePage({ params }: CasePageProps) {
           </section>
 
           <aside className="repository-sidebar">
-            <article className="card sidebar-card">
-              <p className="eyebrow">Repository map</p>
-              <h2>One authoritative history</h2>
+            <article className="about-panel sidebar-card">
+              <h2>About</h2>
               <p>
-                This is the public record. Future moot-court exercises will
-                happen in separate forks instead of changing this timeline.
+                {demoCase.summary} This is the authoritative public record;
+                moot-court work happens in isolated forks.
               </p>
+              <div className="topic-list" aria-label="Topics">
+                <span>Fourth Amendment</span>
+                <span>SCOTUS</span>
+                <span>2018</span>
+                <span>Privacy</span>
+              </div>
+              <div className="sidebar-divider" />
               <dl className="repository-facts">
                 <div>
-                  <dt>Branch</dt>
-                  <dd>
-                    <code>main</code>
-                  </dd>
+                  <dt>
+                    <span aria-hidden="true">◌</span> Following
+                  </dt>
+                  <dd>24</dd>
                 </div>
                 <div>
-                  <dt>Entries</dt>
-                  <dd>{docketEntries.length} public milestones</dd>
+                  <dt>
+                    <span aria-hidden="true">⑂</span> Moot court copies
+                  </dt>
+                  <dd>8</dd>
                 </div>
                 <div>
-                  <dt>Jurisdiction</dt>
-                  <dd>{demoCase.jurisdiction}</dd>
+                  <dt>
+                    <span aria-hidden="true">◉</span> Watchers
+                  </dt>
+                  <dd>17</dd>
                 </div>
               </dl>
+              <div className="sidebar-divider" />
+              <h3>Case composition</h3>
+              <div className="composition-bar" aria-label="Case composition">
+                <span className="composition-majority" />
+                <span className="composition-dissent" />
+                <span className="composition-concurrence" />
+              </div>
+              <div className="composition-legend">
+                <span>
+                  <i className="legend-majority" /> Majority 55%
+                </span>
+                <span>
+                  <i className="legend-dissent" /> Dissent 35%
+                </span>
+                <span>
+                  <i className="legend-concurrence" /> Concurrence 10%
+                </span>
+              </div>
+              <div className="sidebar-divider" />
+              <h3>Contributors</h3>
+              <div className="contributor-grid" aria-label="Case contributors">
+                {["JR", "RG", "SB", "SS", "EK", "TK", "CT", "SA", "NG"].map(
+                  (initials) => (
+                    <span className="avatar contributor-avatar" key={initials}>
+                      {initials}
+                    </span>
+                  ),
+                )}
+              </div>
+              <div className="sidebar-divider" />
+              <p className="sidebar-label">Jurisdiction</p>
+              <p className="sidebar-value">{demoCase.jurisdiction}</p>
+              <a
+                className="source-link"
+                href={demoCase.sourceUrl}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Open official docket ↗
+              </a>
             </article>
 
-            <article className="card sidebar-card source-card">
+            <article className="card sidebar-card source-card" id="insights">
               <p className="eyebrow">Source boundary</p>
               <h2>Read the original</h2>
               <p>

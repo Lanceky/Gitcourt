@@ -49,6 +49,37 @@ function formatDate(date: string): string {
   }).format(new Date(`${date}T00:00:00.000Z`));
 }
 
+function formatRelativeDate(date: string): string {
+  const differenceInDays = Math.max(
+    0,
+    Math.floor(
+      (Date.now() - new Date(`${date}T00:00:00.000Z`).getTime()) /
+        (24 * 60 * 60 * 1000),
+    ),
+  );
+
+  if (differenceInDays < 1) {
+    return "today";
+  }
+  if (differenceInDays < 30) {
+    return `${differenceInDays}d ago`;
+  }
+  if (differenceInDays < 365) {
+    return `${Math.floor(differenceInDays / 30)}mo ago`;
+  }
+
+  return `${Math.floor(differenceInDays / 365)}y ago`;
+}
+
+function formatCommitDate(date: string): string {
+  return new Intl.DateTimeFormat("en", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${date}T00:00:00.000Z`));
+}
+
 function summaryStatusLabel(status: string | null): string {
   switch (status) {
     case "generated":
@@ -69,6 +100,7 @@ export default function CaseRepositoryExplorer({
   const [searchTerm, setSearchTerm] = useState("");
   const [entryType, setEntryType] = useState("all");
   const [branchName, setBranchName] = useState("all");
+  const [copiedSha, setCopiedSha] = useState<string | null>(null);
   const [selectedSha, setSelectedSha] = useState(
     entries[entries.length - 1]?.sha ?? null,
   );
@@ -132,6 +164,29 @@ export default function CaseRepositoryExplorer({
     setSelectedSha(sha);
     window.history.replaceState(null, "", `#commit-${sha.slice(0, 7)}`);
   }
+
+  function copySha(sha: string): void {
+    if (!navigator.clipboard) {
+      return;
+    }
+
+    void navigator.clipboard.writeText(sha).then(
+      () => setCopiedSha(sha),
+      () => setCopiedSha(null),
+    );
+  }
+
+  const groupedEntries = visibleEntries.reduce<
+    Array<{ date: string; entries: ExplorerEntry[] }>
+  >((groups, entry) => {
+    const group = groups.find((candidate) => candidate.date === entry.date);
+    if (group === undefined) {
+      groups.push({ date: entry.date, entries: [entry] });
+    } else {
+      group.entries.push(entry);
+    }
+    return groups;
+  }, []);
 
   return (
     <section className="card explorer" aria-labelledby="history-title">
@@ -212,38 +267,70 @@ export default function CaseRepositoryExplorer({
             </p>
           ) : (
             <div className="timeline-list" role="list">
-              {visibleEntries.map((entry) => {
-                const isSelected = entry.sha === selectedEntry?.sha;
+              {groupedEntries.map((group) => (
+                <section className="commit-group" key={group.date}>
+                  <h4>Commits on {formatCommitDate(group.date)}</h4>
+                  {group.entries.map((entry) => {
+                    const isSelected = entry.sha === selectedEntry?.sha;
+                    const initials = entry.author
+                      .split(/\s+/)
+                      .map((part) => part[0])
+                      .join("")
+                      .slice(0, 2)
+                      .toUpperCase();
 
-                return (
-                  <button
-                    aria-pressed={isSelected}
-                    className={`timeline-entry${isSelected ? " is-selected" : ""}`}
-                    key={entry.sha}
-                    onClick={() => selectEntry(entry.sha)}
-                    type="button"
-                  >
-                    <span className="timeline-line" aria-hidden="true" />
-                    <span className="timeline-marker" aria-hidden="true">
-                      {entry.type.slice(0, 2).toUpperCase()}
-                    </span>
-                    <span className="timeline-entry-content">
-                      <span className="timeline-entry-title">
-                        {entry.title}
-                      </span>
-                      <span className="timeline-entry-meta">
-                        {formatEntryType(entry.type)} · {formatDate(entry.date)}
-                      </span>
-                      <span className="timeline-entry-summary">
-                        {entry.summary}
-                      </span>
-                    </span>
-                    <code title={`Full commit SHA ${entry.sha}`}>
-                      {entry.sha.slice(0, 7)}
-                    </code>
-                  </button>
-                );
-              })}
+                    return (
+                      <div
+                        className={`timeline-entry${isSelected ? " is-selected" : ""}`}
+                        key={entry.sha}
+                        role="listitem"
+                      >
+                        <span
+                          className="avatar commit-avatar"
+                          aria-hidden="true"
+                        >
+                          {initials}
+                        </span>
+                        <button
+                          aria-pressed={isSelected}
+                          className="commit-select"
+                          onClick={() => selectEntry(entry.sha)}
+                          type="button"
+                        >
+                          <span className="timeline-entry-content">
+                            <span className="timeline-entry-title">
+                              {entry.title}
+                            </span>
+                            <span className="timeline-entry-meta">
+                              {entry.author} · {formatRelativeDate(entry.date)}
+                            </span>
+                            <span className="timeline-entry-summary">
+                              {entry.summary}
+                            </span>
+                          </span>
+                        </button>
+                        <span className="commit-row-actions">
+                          <code
+                            className="commit-hash"
+                            title={`Full commit SHA ${entry.sha}`}
+                          >
+                            {entry.sha.slice(0, 7)}
+                          </code>
+                          <button
+                            aria-label={`Copy ${entry.sha} commit hash`}
+                            className="copy-hash"
+                            onClick={() => copySha(entry.sha)}
+                            title="Copy commit hash"
+                            type="button"
+                          >
+                            {copiedSha === entry.sha ? "✓" : "⧉"}
+                          </button>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </section>
+              ))}
             </div>
           )}
         </div>

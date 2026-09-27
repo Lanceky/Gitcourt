@@ -28,6 +28,28 @@ export default function HomePage() {
       </header>
 
       <main className="main landing-page">
+        <div className="landing-repo-context">
+          <div className="repo-path">
+            <span className="repo-breadcrumb-icon" aria-hidden="true">
+              ◇
+            </span>
+            <strong>gitcourt</strong>
+            <span aria-hidden="true">/</span>
+            <span>carpenter-v-united-states</span>
+            <span className="public-badge">Public</span>
+          </div>
+          <nav className="repo-tabs" aria-label="Repository sections">
+            <a className="repo-tab is-active" href="#how-it-works">
+              <span aria-hidden="true">▤</span>
+              Docket
+            </a>
+            <a className="repo-tab" href={`/cases/${demoCase.slug}`}>
+              <span aria-hidden="true">⑂</span>
+              Explore case
+            </a>
+          </nav>
+        </div>
+
         <section className="hero" aria-labelledby="hero-title">
           <p className="eyebrow">A GitHub-inspired case workspace</p>
           <h1 id="hero-title">Read the record. Follow the reasoning.</h1>
@@ -75,7 +97,7 @@ export default function HomePage() {
           </article>
 
           <aside className="card landing-card">
-            <p className="eyebrow">The Git-to-gavel map</p>
+            <p className="eyebrow">Repository conventions</p>
             <h2>Familiar concepts, clearer history</h2>
             <p className="landing-card-copy">
               The interface borrows collaboration patterns from GitHub without

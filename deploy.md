@@ -36,14 +36,17 @@ Before deploying Render, initialize the Supabase PostgreSQL schema once.
 postgresql://postgres:<YOUR-PASSWORD>@db.nhvcdnteolcqzwbhkgus.supabase.co:5432/postgres
 ```
 
-2. Apply the schema script:
+2. Apply the checked-in Prisma migrations:
 
 ```bash
 npm run db:supabase:init
 ```
 
-This runs `psql "$DATABASE_URL" -f supabase.db.sql` and creates all tables,
-indexes, and foreign keys required by the application.
+This applies the checked-in PostgreSQL migrations to the Supabase project.
+Future production schema changes must be added as Prisma migrations and are
+applied automatically by Render during startup. Do not run `supabase.db.sql`
+before this command; that legacy SQL snapshot is retained for reference, while
+Prisma migrations are the source of truth.
 
 ## 3. Deploy the backend on Render
 
@@ -121,8 +124,9 @@ If either request fails, fix Render before creating the frontend. A healthy
 `/api/health` response now verifies both the Next.js process and the database;
 it returns HTTP 503 with `DATABASE_UNAVAILABLE` when the disk, database URL, or
 database permissions are wrong. The `render-start` command creates storage
-directories, runs `prisma db push --skip-generate`, runs the idempotent
-public-case seed, and then starts Next.js.
+directories, runs `prisma migrate deploy`, runs the idempotent public-case
+seed, and then starts Next.js. It fails closed if a migration cannot be
+applied, rather than starting against an unknown schema.
 
 ## 4. Prepare the frontend on Vercel
 
@@ -226,6 +230,8 @@ Check that:
 
 - `DATABASE_URL` uses the Supabase PostgreSQL connection string with the
   correct database password.
+- The migration directory is present in the deployed commit and
+  `prisma migrate deploy` completes before seeding.
 - `GIT_REPOSITORIES_PATH` is exactly `/var/data/repositories`.
 - The persistent disk is mounted at `/var/data`.
 - The service has completed `npm ci` and `npm run render-build`.

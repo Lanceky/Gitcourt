@@ -39,6 +39,11 @@ function runtimeEnvironment(): RuntimeEnvironment {
       "Render startup requires DATABASE_URL and GIT_REPOSITORIES_PATH in production.",
     );
   }
+  if (!databaseUrl.startsWith("postgres")) {
+    throw new Error(
+      "Render startup requires a PostgreSQL DATABASE_URL for Supabase.",
+    );
+  }
 
   return {
     ...process.env,
@@ -85,7 +90,7 @@ async function main(): Promise<void> {
   const localBinary = (name: string) =>
     path.resolve(process.cwd(), "node_modules", ".bin", name);
 
-  await run(localBinary("prisma"), ["db", "push", "--skip-generate"], env);
+  await run(localBinary("prisma"), ["migrate", "deploy"], env);
   await run(localBinary("tsx"), ["prisma/seed.ts"], env);
   await run(localBinary("next"), ["start"], env);
 }

@@ -57,8 +57,9 @@ npm run dev
 
 Open `http://localhost:3000` after the development server starts. The migration and seed commands are safe to rerun; they preserve the single public fixture without duplicating its docket entries.
 
-`db:supabase:init` applies `supabase.db.sql`, which creates the full PostgreSQL
-schema expected by Prisma in a Supabase project.
+`db:supabase:init` applies the checked-in Prisma migrations to the Supabase
+PostgreSQL project. Prisma migrations are the schema source of truth; do not
+apply the legacy `supabase.db.sql` snapshot first.
 
 ## Current foundation
 
@@ -100,7 +101,12 @@ The deployment is split across services while keeping one repository:
 - **Supabase:** hosts the PostgreSQL database used by Prisma.
 - **Vercel frontend:** runs the React/Next pages. Its server-rendered case page and browser workflow call the Render API through `NEXT_PUBLIC_API_BASE_URL`.
 
-`render.yaml` is a Render Blueprint for the backend. It syncs Prisma schema with `prisma db push`, runs the idempotent public-case seed when the service starts, and exposes `/api/health`. A persistent disk still stores Git repositories at `/var/data/repositories`. Set `CORS_ALLOWED_ORIGINS` in Render to the exact Vercel production URL, plus any Vercel preview URLs you need, separated by commas.
+`render.yaml` is a Render Blueprint for the backend. It applies checked-in
+Prisma migrations to Supabase, runs the idempotent public-case seed when the
+service starts, and exposes `/api/health`. A persistent disk still stores Git
+repositories at `/var/data/repositories`. Set `CORS_ALLOWED_ORIGINS` in Render
+to the exact Vercel production URL, plus any Vercel preview URLs you need,
+separated by commas.
 
 ### Render backend
 

@@ -86,6 +86,14 @@ instance if user-created forks and commits must survive restarts.
 | `AI_SUMMARY_TIMEOUT_MS`    | `8000`                                                                               |
 | `CORS_ALLOWED_ORIGINS`     | Set after the Vercel URL exists; see below                                           |
 
+`DATABASE_URL` is marked `sync: false` in the Blueprint, so it is a required
+secret you must add to the Render service yourself. Use the Supabase
+PostgreSQL connection string and replace `<PASSWORD>` with the database
+password. If the deploy log says `Render startup requires DATABASE_URL`, this
+variable is missing from the environment of the service that is starting.
+Adding it to a different Render service or only to a local `.env` file will
+not resolve the error.
+
 The service must also have the persistent disk from the Blueprint attached to
 the same Render service that runs `https://gitcourt.onrender.com` (for Git repositories):
 
@@ -230,9 +238,12 @@ Check that:
 
 - `DATABASE_URL` uses the Supabase PostgreSQL connection string with the
   correct database password.
+- `DATABASE_URL` is set in the Environment tab of this exact Render web
+  service, not only in the Blueprint editor or local `.env`.
 - The migration directory is present in the deployed commit and
   `prisma migrate deploy` completes before seeding.
-- `GIT_REPOSITORIES_PATH` is exactly `/var/data/repositories`.
+- `GIT_REPOSITORIES_PATH` is `/var/data/repositories` (the startup script uses
+  this path by default when the variable is omitted).
 - The persistent disk is mounted at `/var/data`.
 - The service has completed `npm ci` and `npm run render-build`.
 - The service's **Start Command** is `npm run render-start` (or `npm start`,

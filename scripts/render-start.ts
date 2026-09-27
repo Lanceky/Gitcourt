@@ -32,11 +32,13 @@ function runtimeEnvironment(): RuntimeEnvironment {
       : "postgresql://postgres:postgres@localhost:5432/gitcourt");
   const repositoriesPath =
     process.env.GIT_REPOSITORIES_PATH ??
-    (isProduction ? "" : path.join(process.cwd(), ".data", "repositories"));
+    (isProduction
+      ? "/var/data/repositories"
+      : path.join(process.cwd(), ".data", "repositories"));
 
-  if (databaseUrl.length === 0 || repositoriesPath.length === 0) {
+  if (databaseUrl.length === 0) {
     throw new Error(
-      "Render startup requires DATABASE_URL and GIT_REPOSITORIES_PATH in production.",
+      "Render startup requires DATABASE_URL. Set it to the Supabase PostgreSQL connection string in the Render service environment.",
     );
   }
   if (!databaseUrl.startsWith("postgres")) {

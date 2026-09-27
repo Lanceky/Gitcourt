@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import CaseRepositoryExplorer from "@/app/cases/[slug]/case-repository-explorer";
 import MootCourtWorkspace from "@/app/cases/[slug]/moot-court-workspace";
+import GitHubProjectMenu from "@/app/github-project-menu";
 import { apiUrl, usesExternalApi } from "@/lib/api-client";
 import { caseReadResponseSchema } from "@/lib/api-contracts";
 import { demoCase, getDemoDocketEntries } from "@/lib/demo-case";
@@ -127,6 +128,7 @@ export default async function CasePage({ params }: CasePageProps) {
           >
             Official docket
           </a>
+          <GitHubProjectMenu caseHref={`/cases/${demoCase.slug}`} />
         </div>
       </header>
 

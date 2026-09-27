@@ -1,13 +1,14 @@
 :root {
-  --background: #f5f7fb;
-  --foreground: #172033;
-  --muted: #5f6b82;
-  --border: #dbe2ee;
-  --surface: #ffffff;
-  --accent: #3657d6;
-  --accent-soft: #e9edff;
-  --success: #137a55;
-  --shadow: 0 18px 50px rgb(35 50 90 / 10%);
+  color-scheme: dark;
+  --background: #0d1117;
+  --foreground: #e6edf3;
+  --muted: #8b949e;
+  --border: #30363d;
+  --surface: #161b22;
+  --accent: #58a6ff;
+  --accent-soft: rgb(31 111 235 / 22%);
+  --success: #238636;
+  --shadow: none;
 }
 
 * {
@@ -1991,19 +1992,20 @@ blockquote {
   }
 }
 
-/* GitHub light-theme repository system */
+/* GitHub/Vercel dark-theme repository system */
 :root {
-  --background: #ffffff;
-  --foreground: #1f2328;
-  --muted: #656d76;
-  --border: #d0d7de;
-  --surface: #ffffff;
-  --subtle: #f6f8fa;
-  --accent: #0969da;
-  --accent-soft: #ddf4ff;
-  --success: #1f883d;
-  --warning: #9a6700;
-  --danger: #cf222e;
+  color-scheme: dark;
+  --background: #0d1117;
+  --foreground: #e6edf3;
+  --muted: #8b949e;
+  --border: #30363d;
+  --surface: #161b22;
+  --subtle: #21262d;
+  --accent: #58a6ff;
+  --accent-soft: rgb(31 111 235 / 22%);
+  --success: #238636;
+  --warning: #d29922;
+  --danger: #f85149;
   --shadow: none;
 }
 
@@ -3500,4 +3502,486 @@ blockquote {
     margin-right: 16px;
     margin-left: 16px;
   }
+}
+
+/* Dark surfaces and contrast tokens */
+html,
+body {
+  color-scheme: dark;
+  color: var(--foreground);
+  background: var(--background);
+}
+
+::selection {
+  color: #ffffff;
+  background: #1f6feb;
+}
+
+a {
+  color: var(--accent);
+}
+
+a:hover {
+  color: #79c0ff;
+}
+
+button,
+input,
+select,
+textarea {
+  color-scheme: dark;
+}
+
+.site-notice {
+  color: #e6edf3;
+  background: #010409;
+  border-bottom: 1px solid #21262d;
+  box-shadow: none;
+}
+
+.topbar {
+  color: #e6edf3;
+  background: #010409;
+  border-bottom: 1px solid #21262d;
+}
+
+.brand,
+.brand:hover {
+  color: #f0f6fc;
+}
+
+.brand-mark {
+  border-color: #f0f6fc;
+  color: #010409;
+  background: #f0f6fc;
+}
+
+.topbar-note {
+  color: #8b949e;
+}
+
+.text-link,
+.toolbar-link,
+.history-link {
+  color: #58a6ff;
+}
+
+.text-link:hover,
+.toolbar-link:hover,
+.history-link:hover {
+  color: #79c0ff;
+}
+
+.repo-path,
+.repository-page > .breadcrumb {
+  color: var(--muted);
+}
+
+.repo-path strong,
+.repo-path > span:not(.repo-breadcrumb-icon):not(.public-badge),
+.repository-page > .breadcrumb strong {
+  color: var(--foreground);
+}
+
+.repo-breadcrumb-icon {
+  color: var(--muted);
+}
+
+.public-badge,
+.preview-entry code,
+.commit-hash,
+.detail-sha {
+  border-color: var(--border);
+  color: var(--muted);
+  background: var(--subtle);
+}
+
+.repo-tabs {
+  border-bottom-color: var(--border);
+}
+
+.repo-tab {
+  color: var(--muted);
+}
+
+.repo-tab:hover,
+.repo-tab.is-active {
+  color: var(--foreground);
+}
+
+.repo-tab.is-active {
+  border-bottom-color: #f78166;
+}
+
+.card,
+.repo-file-list,
+.moot-workspace,
+.explorer,
+.review-workspace,
+.diff-panel,
+.review-list,
+.blame-panel,
+.audit-panel {
+  border-color: var(--border);
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.hero-copy,
+.landing-card-copy,
+.landing-source,
+.repository-description,
+.readme-heading p,
+.readme-expanded > p,
+.explorer-heading p:not(.eyebrow),
+.about-panel > p:not(.eyebrow),
+.source-preview,
+.relationship-caption,
+.review-source-card p {
+  color: var(--muted);
+}
+
+.button {
+  border-color: var(--border);
+  color: var(--foreground);
+  background: var(--subtle);
+}
+
+.button:hover,
+.branch-button:hover {
+  border-color: #8b949e;
+  color: var(--foreground);
+  background: #30363d;
+}
+
+.button-secondary {
+  border-color: var(--border);
+  color: var(--foreground);
+  background: var(--surface);
+}
+
+.button-secondary:hover {
+  color: var(--foreground);
+  background: var(--subtle);
+}
+
+.button-code,
+.button-merge {
+  border-color: #238636;
+  color: #ffffff;
+  background: #238636;
+}
+
+.button-code:hover,
+.button-merge:hover {
+  border-color: #2ea043;
+  color: #ffffff;
+  background: #2ea043;
+}
+
+.button:focus-visible,
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline-color: #58a6ff;
+}
+
+.landing-case-facts div,
+.source-attribution,
+.sidebar-divider,
+.file-row,
+.review-entry,
+.audit-entry,
+.commit-group h4,
+.readme-markdown h3 {
+  border-color: var(--border);
+}
+
+.preview-heading,
+.readme-heading,
+.file-list-header,
+.history-filters,
+.moot-heading,
+.review-actions,
+.timeline-panel-heading {
+  border-color: var(--border);
+  background: var(--subtle);
+}
+
+.preview-entry:hover,
+.file-row:hover,
+.timeline-entry:hover,
+.copy-hash:hover {
+  border-color: var(--border);
+  background: #21262d;
+}
+
+.preview-entry > span:nth-child(2) > span,
+.file-row-content span,
+.file-row time,
+.history-count,
+.timeline-panel-heading span,
+.timeline-entry-meta,
+.timeline-entry-summary,
+.commit-group h4,
+.file-row-icon {
+  color: var(--muted);
+}
+
+.preview-entry code,
+.commit-hash,
+.detail-sha {
+  color: #8b949e;
+  background: #21262d;
+}
+
+.timeline-entry.is-selected {
+  border-left-color: #58a6ff;
+  background: rgb(31 111 235 / 22%);
+}
+
+.timeline-entry-title,
+.file-row-content strong {
+  color: #58a6ff;
+}
+
+.commit-select,
+.commit-select:hover {
+  color: var(--foreground);
+  background: transparent;
+}
+
+.copy-hash {
+  color: var(--muted);
+  background: transparent;
+}
+
+.copy-hash:hover {
+  border-color: var(--border);
+  color: var(--foreground);
+  background: var(--subtle);
+}
+
+.avatar {
+  color: #ffffff;
+  background: #6e7681;
+}
+
+.contributor-avatar {
+  border-color: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.branch-button,
+.go-to-filing {
+  border-color: var(--border);
+  color: var(--foreground);
+  background: var(--subtle);
+}
+
+.go-to-filing {
+  color: var(--muted);
+  background: var(--surface);
+}
+
+.go-to-filing input,
+.filter-field input,
+.filter-field select,
+.filter-field textarea {
+  border-color: var(--border);
+  color: var(--foreground);
+  background: #0d1117;
+}
+
+.filter-field input::placeholder {
+  color: #6e7681;
+}
+
+.status-readonly {
+  border-color: #9e6a03;
+  color: #d29922;
+  background: rgb(187 128 9 / 18%);
+}
+
+.topic-list span {
+  color: #58a6ff;
+  background: rgb(31 111 235 / 25%);
+}
+
+.composition-majority,
+.legend-majority {
+  background: #58a6ff;
+}
+
+.composition-dissent,
+.legend-dissent {
+  background: #f85149;
+}
+
+.composition-concurrence,
+.legend-concurrence {
+  background: #bc8cff;
+}
+
+.moot-heading,
+.moot-collapsed {
+  color: var(--foreground);
+}
+
+.workflow-lock {
+  border-color: var(--border);
+  color: var(--muted);
+  background: var(--subtle);
+}
+
+.moot-boundary,
+.review-actions,
+.argument-preview,
+.ai-summary-card {
+  border-color: #1f6feb;
+  color: #79c0ff;
+  background: rgb(31 111 235 / 14%);
+}
+
+.workflow-error,
+.conflict-callout,
+.citation-callout,
+.status-conflict {
+  border-color: #f85149;
+  color: #ff7b72;
+  background: rgb(248 81 73 / 14%);
+}
+
+.workflow-step,
+.relationship-panel,
+.document-section,
+.timeline-panel,
+.commit-detail {
+  border-color: var(--border);
+}
+
+.identity-fields,
+.workflow-source,
+.branch-context,
+.review-branch-summary {
+  border-color: var(--border);
+  color: var(--foreground);
+  background: var(--subtle);
+}
+
+.relationship-panel,
+.relationship-node {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.relationship-badge,
+.document-badge,
+.status-pill,
+.decision-approve,
+.commit-success {
+  border-color: #238636;
+  color: #3fb950;
+  background: rgb(35 134 54 / 18%);
+}
+
+.fork-node {
+  border-color: #1f6feb;
+  background: rgb(31 111 235 / 14%);
+}
+
+.relationship-arrow,
+.relationship-node code,
+.relationship-caption code,
+.branch-context code,
+.argument-preview-heading code,
+.review-metadata-grid code,
+.review-metadata-grid small,
+.review-source-card a,
+.blame-line > a,
+.ai-source-references a {
+  color: #58a6ff;
+}
+
+.workflow-source,
+.argument-preview,
+.ai-summary-card {
+  background: rgb(31 111 235 / 10%);
+}
+
+.argument-preview > p,
+.review-entry p,
+.summary-section > p,
+.ai-summary-copy,
+.ai-summary-disclaimer,
+.detail-heading p:not(.eyebrow) {
+  color: var(--foreground);
+}
+
+.argument-preview pre,
+.diff-file pre {
+  border-color: var(--border);
+  color: #e6edf3;
+  background: #0d1117;
+}
+
+.diff-file > code {
+  color: #58a6ff;
+  background: var(--subtle);
+}
+
+.diff-addition {
+  color: #aff5b4;
+  background: rgb(46 160 67 / 22%);
+}
+
+.diff-deletion {
+  color: #ffaba8;
+  background: rgb(248 81 73 / 22%);
+}
+
+.review-metadata-grid > div,
+.review-source-card > div {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.review-decision {
+  color: #58a6ff;
+  background: rgb(31 111 235 / 22%);
+}
+
+.decision-request_changes {
+  color: #d29922;
+  background: rgb(187 128 9 / 18%);
+}
+
+.blame-line > code,
+.blame-line > small,
+.audit-entry span,
+.review-entry time,
+.audit-entry time,
+.metadata-label,
+.detail-metadata dt,
+.source-metadata dt,
+.ai-source-references {
+  color: var(--muted);
+}
+
+blockquote {
+  border-left-color: #58a6ff;
+  color: var(--foreground);
+  background: var(--subtle);
+}
+
+.file-icon {
+  color: #58a6ff;
+  background: rgb(31 111 235 / 22%);
+}
+
+.empty-state {
+  color: var(--muted);
+  background: var(--subtle);
 }

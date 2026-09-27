@@ -98,7 +98,7 @@ test(
       const { POST: mergePullRequest } =
         await import("@/app/api/pull-requests/[pullRequestId]/merge/route");
 
-      const healthResponse = health();
+      const healthResponse = await health();
       const healthPayload = await expectJson(healthResponse, 200);
       assert.equal(healthPayload.status, "ok");
 

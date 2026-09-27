@@ -64,6 +64,18 @@ restarts.
 | `AI_SUMMARY_TIMEOUT_MS` | `8000`                                     |
 | `CORS_ALLOWED_ORIGINS`  | Set after the Vercel URL exists; see below |
 
+The service must also have the persistent disk from the Blueprint attached to
+the same Render service that runs `https://gitcourt.onrender.com`:
+
+| Disk setting | Value            |
+| ------------ | ---------------- |
+| Mount path   | `/var/data`      |
+| Size         | `1 GB` or larger |
+
+The startup script creates the database and repository parent directories
+before running Prisma. It still cannot substitute for an attached persistent
+disk: without that disk, data is ephemeral and may not be writable.
+
 Leave `AI_SUMMARY_API_URL` and `AI_SUMMARY_API_KEY` unset while the guarded AI
 provider is disabled. If AI is enabled later, add those values only to Render;
 never expose them as `NEXT_PUBLIC_*` variables in Vercel.
@@ -86,9 +98,12 @@ curl --fail https://gitcourt-backend.onrender.com/api/cases/carpenter-v-united-s
 The health response must contain `"status":"ok"`. The case API response must
 contain a non-empty `history` array, normally with 11 seeded public milestones.
 
-If either request fails, fix Render before creating the frontend. The
-`render-start` command runs Prisma migrations and the idempotent public-case
-seed before starting Next.js.
+If either request fails, fix Render before creating the frontend. A healthy
+`/api/health` response now verifies both the Next.js process and the database;
+it returns HTTP 503 with `DATABASE_UNAVAILABLE` when the disk, database URL, or
+database permissions are wrong. The `render-start` command creates storage
+directories, runs Prisma migrations, runs the idempotent public-case seed, and
+then starts Next.js.
 
 ## 3. Prepare the frontend on Vercel
 
@@ -194,6 +209,8 @@ Check that:
 - `GIT_REPOSITORIES_PATH` is exactly `/var/data/repositories`.
 - The persistent disk is mounted at `/var/data`.
 - The service has completed `npm ci` and `npm run render-build`.
+- The service's **Start Command** is `npm run render-start` (or `npm start`,
+  which now uses the same startup script).
 
 Do not move these paths to `/tmp`; `/tmp` is not durable.
 
@@ -212,6 +229,9 @@ Confirm that:
 Check `NEXT_PUBLIC_API_BASE_URL` in the Vercel environment and redeploy after
 changing it. It must point to the Render origin and must not include `/api`.
 Also check the Render `/api/health` endpoint and the Render service logs.
+
+If `/api/health` returns `503` with `DATABASE_UNAVAILABLE`, verify that the
+disk is attached to this exact service and that its mount path is `/var/data`.
 
 ### Browser requests fail with a CORS error
 

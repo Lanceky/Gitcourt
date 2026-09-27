@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "./node_modules/.bin/tsx scripts/render-start.ts",
     "lint": "eslint .",
     "test": "tsx --test tests/*.test.ts",
     "test:e2e": "tsx --test tests/demo-workflow.e2e.test.ts",
@@ -20,7 +20,7 @@
     "import:public-case": "tsx prisma/seed.ts",
     "vercel-build": "./node_modules/.bin/next build",
     "render-build": "./node_modules/.bin/prisma generate && ./node_modules/.bin/next build",
-    "render-start": "./node_modules/.bin/prisma migrate deploy && ./node_modules/.bin/tsx prisma/seed.ts && ./node_modules/.bin/next start",
+    "render-start": "./node_modules/.bin/tsx scripts/render-start.ts",
     "verify:deployment": "tsx scripts/verify-deployment.ts"
   },
   "dependencies": {

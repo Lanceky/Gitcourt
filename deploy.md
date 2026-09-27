@@ -102,9 +102,14 @@ the same Render service that runs `https://gitcourt.onrender.com` (for Git repos
 | Mount path   | `/var/data`      |
 | Size         | `1 GB` or larger |
 
-The startup script creates the repository parent directory before running
-Prisma. It cannot substitute for an attached persistent disk: without that
-disk, repository data is ephemeral and may not be writable.
+If startup reports `EACCES` while creating `/var/data`, the persistent disk is
+not mounted on the web service that's starting (or its mount path differs).
+Open that service's **Disks** settings, attach the `gitcourt-data` disk, and
+set its mount path to exactly `/var/data`. The `disk` entry in `render.yaml`
+only configures the service when the Blueprint is applied; existing
+services may need the disk attached in the dashboard. Redeploy after saving.
+The startup script creates `/var/data/repositories` on the mounted disk; it
+cannot create `/var/data` on the host filesystem as a substitute for the disk.
 
 Leave `AI_SUMMARY_API_URL` and `AI_SUMMARY_API_KEY` unset while the guarded AI
 provider is disabled. If AI is enabled later, add those values only to Render;
@@ -245,6 +250,8 @@ Check that:
 - `GIT_REPOSITORIES_PATH` is `/var/data/repositories` (the startup script uses
   this path by default when the variable is omitted).
 - The persistent disk is mounted at `/var/data`.
+- The disk is attached to the exact web service being deployed, not another
+  service in the Render workspace.
 - The service has completed `npm ci` and `npm run render-build`.
 - The service's **Start Command** is `npm run render-start` (or `npm start`,
   which now uses the same startup script).

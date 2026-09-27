@@ -87,7 +87,23 @@ async function main(): Promise<void> {
   if (sqlitePath !== null) {
     await mkdir(path.dirname(sqlitePath), { recursive: true });
   }
-  await mkdir(path.resolve(env.GIT_REPOSITORIES_PATH), { recursive: true });
+  try {
+    await mkdir(path.resolve(env.GIT_REPOSITORIES_PATH), { recursive: true });
+  } catch (error: unknown) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "EACCES"
+    ) {
+      throw new Error(
+        `Cannot access Git repository storage at ${env.GIT_REPOSITORIES_PATH}. Attach the Render persistent disk to this web service with mount path /var/data, or set GIT_REPOSITORIES_PATH to a writable directory on that disk.`,
+        { cause: error },
+      );
+    }
+
+    throw error;
+  }
 
   const localBinary = (name: string) =>
     path.resolve(process.cwd(), "node_modules", ".bin", name);
